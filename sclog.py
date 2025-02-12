@@ -7,6 +7,8 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+#from zoneinfo import ZoneInfo  # Python 3.9以上であれば標準のzoneinfoが利用可能
+from backports.zoneinfo import ZoneInfo
 
 # .envファイルから環境変数をロード
 load_dotenv()
@@ -14,22 +16,11 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
 
-# 動作確認のための出力（必要に応じて削除してください）
-#print("SUPABASE_URL:", SUPABASE_URL)
-#print("SUPABASE_API_KEY:", SUPABASE_API_KEY)
-
 HEADERS = {
     "apikey": SUPABASE_API_KEY,
     "Authorization": f"Bearer {SUPABASE_API_KEY}",
     "Content-Type": "application/json",
 }
-
-def get_activity_time():
-    """現在時刻を、その日の 0:00 からの経過分数に変換します。"""
-    now = datetime.utcnow()
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    minutes_since_midnight = int((now - midnight).total_seconds() / 60)
-    return minutes_since_midnight
 
 def is_valid_uuid(value):
     """指定された文字列が UUID 形式かどうかチェックします。"""
@@ -39,23 +30,92 @@ def is_valid_uuid(value):
     except ValueError:
         return False
 
+def get_pc_id_from_user(user_id, pc_identifier):
+    """
+    pc_identifier が UUID 形式の場合はそれをそのまま返す。
+    そうでない場合は pc_identifier を pc_name とみなし、user_pcs から該当する pc_id を取得して返す。
+    見つからなければ None を返す。
+    """
+    # UUID 形式の場合はそのまま返す
+    if is_valid_uuid(pc_identifier):
+        return pc_identifier
+
+    # pc_name で user_pcs を検索
+    url = (
+        f"{SUPABASE_URL}/rest/v1/user_pcs"
+        f"?user_id=eq.{user_id}&pc_name=eq.{pc_identifier}&select=pc_id"
+    )
+    response = requests.get(url, headers=HEADERS)
+    if not response.text.strip():
+        return None
+
+    data = response.json()
+    if not data:
+        return None
+
+    # pc_name が一意である前提で先頭を返す
+    return data[0]["pc_id"]
+
+def get_pc_name_from_pc_id(user_id, pc_id):
+    """
+    user_pcs から pc_id に対応する pc_name を取得して返す。
+    該当がなければ None を返す。
+    """
+    url = (
+        f"{SUPABASE_URL}/rest/v1/user_pcs"
+        f"?user_id=eq.{user_id}&pc_id=eq.{pc_id}&select=pc_name"
+    )
+    response = requests.get(url, headers=HEADERS)
+    if not response.text.strip():
+        return None
+    data = response.json()
+    if not data:
+        return None
+    return data[0]["pc_name"]
+
 def check_user_exists(user_id):
     """users_watch_time テーブルに指定された user_id が存在するか確認します。"""
     url = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=user_id"
     response = requests.get(url, headers=HEADERS)
     return bool(response.text.strip() and response.json())
 
-def log_pc_activity(user_id, pc_id, return_result=False):
-    """PCアクティビティを記録します。PC とユーザの UUID を受け取り、現在時刻（その日の経過分数）を記録します。"""
+def get_activity_time():
+    """
+    現在時刻を JST (日本標準時) で取得し、
+    その日の 0:00 (JST) からの経過分数を返します。
+    """
+    jst = ZoneInfo("Asia/Tokyo")
+    now = datetime.now(jst)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    minutes_since_midnight = int((now - midnight).total_seconds() / 60)
+    return minutes_since_midnight
+
+def log_pc_activity(user_id, pc_identifier, return_result=False):
+    """
+    PCアクティビティを記録します。
+    pc_identifier は UUID もしくは pc_name を受け取り、
+    対応する pc_id を取得した上で pc_activity に登録します。
+    """
+    # user_id が正しいかチェック
     if not is_valid_uuid(user_id):
         result = f"エラー: user_id ({user_id}) は正しいUUID形式ではありません"
         return result if return_result else print(result)
-    if not is_valid_uuid(pc_id):
-        result = f"エラー: pc_id ({pc_id}) は正しいUUID形式ではありません"
-        return result if return_result else print(result)
+
+    # user が存在するかチェック
     if not check_user_exists(user_id):
         result = f"エラー: user_id ({user_id}) は users_watch_time に存在しません"
         return result if return_result else print(result)
+
+    # pc_identifier が UUID でなければ pc_name とみなして pc_id を検索
+    pc_id = get_pc_id_from_user(user_id, pc_identifier)
+    if not pc_id:
+        result = (
+            f"エラー: 指定されたPC (\"{pc_identifier}\") が見つかりません。"
+            "UUID または既存の pc_name を指定してください。"
+        )
+        return result if return_result else print(result)
+
+    # PCアクティビティを記録
     activity_time = get_activity_time()
     url = f"{SUPABASE_URL}/rest/v1/pc_activity"
     data = {"user_id": user_id, "pc_id": pc_id, "activity_time": activity_time}
@@ -73,7 +133,7 @@ def log_pc_activity(user_id, pc_id, return_result=False):
 def check_watch_time(user_id, return_result=False):
     """
     ユーザの残り視聴可能時間を取得します。
-    （users_watch_time.default_time ＋ watch_time_log の合計 － 全PCの利用済み分数（重複は1分として））
+    （users_watch_time.default_time + watch_time_log の合計 - 全PCの利用済み分数（重複は1分として））
     """
     try:
         url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
@@ -129,11 +189,24 @@ def get_total_usage(user_id, return_result=False):
         result = "E"
     return result if return_result else print(result)
 
-def get_pc_usage(user_id, pc_id, return_result=False):
+def get_pc_usage(user_id, pc_identifier, return_result=False):
     """
     特定PCの利用済み分数（重複は1分として）と、利用時刻（HH:MM形式）のリストを返します。
+    pc_identifier は UUID もしくは pc_name を受け取り、最終的に対応する pc_id を使って検索します。
+    結果に pc_name も含めて返します。
     """
     try:
+        # pc_identifier が UUID 形式でなければ pc_name とみなして pc_id を取得
+        pc_id = get_pc_id_from_user(user_id, pc_identifier)
+        if not pc_id:
+            result = json.dumps({
+                "error": f"指定されたPC (\"{pc_identifier}\") が見つかりません。"
+            }, ensure_ascii=False)
+            return result if return_result else print(result)
+
+        # 逆に pc_id から pc_name を取得
+        pc_name = get_pc_name_from_pc_id(user_id, pc_id) or pc_id
+
         url = f"{SUPABASE_URL}/rest/v1/pc_activity?user_id=eq.{user_id}&pc_id=eq.{pc_id}&select=activity_time"
         response = requests.get(url, headers=HEADERS)
         data = response.json() if response.text.strip() else []
@@ -142,6 +215,7 @@ def get_pc_usage(user_id, pc_id, return_result=False):
         usage_times = [f"{m // 60:02d}:{m % 60:02d}" for m in sorted(unique_minutes)]
         res = {
             "success": True,
+            "pc_name": pc_name,
             "pc_usage_minutes": total_usage,
             "usage_times": usage_times
         }
@@ -152,7 +226,7 @@ def get_pc_usage(user_id, pc_id, return_result=False):
 
 def get_allowed_time(user_id, return_result=False):
     """
-    ユーザのその日の視聴可能時間（users_watch_time.default_time ＋ watch_time_log の合計）を返します。
+    ユーザのその日の視聴可能時間（users_watch_time.default_time + watch_time_log の合計）を返します。
     """
     try:
         url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
@@ -174,10 +248,17 @@ def get_allowed_time(user_id, return_result=False):
         result = "E"
     return result if return_result else print(result)
 
-def check_usage(user_id, return_result=False):
+def check_usage(user_id, message_mode="normal", return_result=False):
     """
     全PCでの利用済み分数（重複は1分として）と視聴可能時間を比較し、
-    利用が視聴可能時間内なら "within allowed"、超えていれば "exceeded allowed" を返します。
+    範囲内か超過かを "within allowed" or "exceeded allowed" として返します。
+
+    :param message_mode:
+        - "normal": 従来通りのJSON (英語ステータス) のみ
+        - "hover":  AHKマウスホバー表示用に、日本語メッセージを追加
+        - "giant":  時間超過時の大きな警告ウィンドウ向けに、日本語メッセージを追加
+        - "fileout": 3ファイル出力用（本関数自体は JSON 返却としては "hover"/"giant"/"normal" と同じ形式を出す）
+        - "fileout_only_message": 上記とほぼ同様だが、あとで message_jp のみを抽出する想定
     """
     try:
         url = f"{SUPABASE_URL}/rest/v1/pc_activity?user_id=eq.{user_id}&select=activity_time"
@@ -185,6 +266,7 @@ def check_usage(user_id, return_result=False):
         data = response.json() if response.text.strip() else []
         unique_minutes = {row["activity_time"] for row in data}
         total_usage = len(unique_minutes)
+
         url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
         response_w = requests.get(url_watch_time, headers=HEADERS)
         watch_data = response_w.json() if response_w.text.strip() else []
@@ -192,18 +274,52 @@ def check_usage(user_id, return_result=False):
             result = json.dumps({"error": "User not found"}, ensure_ascii=False)
             return result if return_result else print(result)
         default_time = watch_data[0]["default_time"]
+
         url_watch_log = f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}&select=added_minutes"
         response_log = requests.get(url_watch_log, headers=HEADERS)
         log_data = response_log.json() if response_log.text.strip() else []
         total_added = sum(log["added_minutes"] for log in log_data)
         allowed = default_time + total_added
         status = "within allowed" if total_usage <= allowed else "exceeded allowed"
+
+        # 基本のJSONレスポンス
         res = {
             "success": True,
             "total_usage_minutes": total_usage,
             "allowed_watch_time_minutes": allowed,
             "status": status
         }
+
+        # 追加の日本語メッセージ
+        if message_mode in ["hover", "giant"]:
+            if status == "within allowed":
+                remain = allowed - total_usage  # 残り分数
+                if message_mode == "hover":
+                    # 簡易な短いメッセージ
+                    msg_jp = f"あと {remain} 分視聴可能です。"
+                else:  # giant
+                    # やや長めのメッセージ
+                    msg_jp = (
+                        f"現在 {total_usage} 分使用中、視聴可能時間は合計 {allowed} 分です。\n"
+                        f"まだ {remain} 分余裕があります。"
+                    )
+            else:
+                exceed = total_usage - allowed  # 超過分数
+                if message_mode == "hover":
+                    msg_jp = f"視聴時間を {exceed} 分 超過しています。"
+                else:  # giant
+                    msg_jp = (
+                        f"あなたの視聴時間は {total_usage} 分で、許容 {allowed} 分を {exceed} 分超えています。\n"
+                        "至急、視聴を止めてください！"
+                    )
+            res["message_jp"] = msg_jp
+
+        # fileout や fileout_only_message の時も、内部的には JSON を返す
+        elif message_mode in ["fileout", "fileout_only_message"]:
+            # JSONに message_jp が無い場合は空にする
+            # （実装の自由度大。必要なら message_jp="" を入れておく）
+            res["message_jp"] = res.get("message_jp", "")
+
         result = json.dumps(res, ensure_ascii=False)
     except Exception:
         result = "E"
@@ -212,7 +328,7 @@ def check_usage(user_id, return_result=False):
 def is_able_watch(user_id, return_result=False):
     """
     全PCでの利用済み分数とその日の視聴可能時間を比較し、
-    利用が許容内なら "T"、超えていれば "F"、エラー時は "E" を返します。
+    視聴可能なら 'T'、超過なら 'F'、エラー時は 'E' を返します。
     """
     try:
         url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
@@ -247,7 +363,7 @@ def is_able_watch(user_id, return_result=False):
 
 def insert_watch_log(user_id, added_minutes, return_result=False):
     """
-    watch_time_log テーブルに added_minutes の値を挿入します。（マイナスの値も可能です）
+    watch_time_log テーブルに added_minutes の値を挿入します。（マイナスの値も可能）
     """
     if not is_valid_uuid(user_id):
         result = f"エラー: user_id ({user_id}) は正しいUUID形式ではありません"
@@ -283,7 +399,7 @@ def main():
         description=(
             "Screen Time Management CLI\n\n"
             "このスクリプトは、PCのアクティビティログ、視聴時間ログの管理および利用状況の照会機能を提供します。\n"
-            "各コマンドは必須パラメータとして user_id（および pc_id や added_minutes 等）を受け取り、\n"
+            "各コマンドは必須パラメータとして user_id（および pc_id/pc_name や added_minutes 等）を受け取り、\n"
             "オプションで --output (-o) を指定すると、結果を指定されたファイルに出力します。\n"
             "エラー発生時は 'E'、視聴可能なら 'T'、超過していれば 'F' などの結果を返します。"
         ),
@@ -294,16 +410,19 @@ def main():
     # log-pc-activity コマンド
     parser_log_pc = subparsers.add_parser(
         "log-pc-activity",
-        help="指定したユーザとPCのUUIDを用いて、現在時刻を記録します。"
+        help="指定したユーザとPC (UUIDまたはpc_name) を用いて、現在時刻を記録します。"
     )
     parser_log_pc.add_argument("user_id", help="ユーザID (UUID)")
-    parser_log_pc.add_argument("pc_id", help="PC ID (UUID)")
+    parser_log_pc.add_argument(
+        "pc_identifier",
+        help="PC ID (UUID) もしくは user_pcs の pc_name"
+    )
     parser_log_pc.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
     # check-watch-time コマンド
     parser_check_watch = subparsers.add_parser(
         "check-watch-time",
-        help="ユーザの残り視聴可能時間を取得します。\n(ユーザの default_time ＋ watch_time_log の合計 － 全PCの利用済み分数)"
+        help="ユーザの残り視聴可能時間を取得します。\n(ユーザの default_time + watch_time_log の合計 - 全PCの利用済み分数)"
     )
     parser_check_watch.add_argument("user_id", help="ユーザID (UUID)")
     parser_check_watch.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
@@ -319,10 +438,13 @@ def main():
     # get-pc-usage コマンド
     parser_pc_usage = subparsers.add_parser(
         "get-pc-usage",
-        help="指定したPCの利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。"
+        help="指定したPC (UUIDまたはpc_name) の利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。"
     )
     parser_pc_usage.add_argument("user_id", help="ユーザID (UUID)")
-    parser_pc_usage.add_argument("pc_id", help="PC ID (UUID)")
+    parser_pc_usage.add_argument(
+        "pc_identifier",
+        help="PC ID (UUID) もしくは user_pcs の pc_name"
+    )
     parser_pc_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
     # get-allowed-time コマンド
@@ -336,9 +458,23 @@ def main():
     # check-usage コマンド
     parser_check_usage = subparsers.add_parser(
         "check-usage",
-        help="全PCの利用済み分数と視聴可能時間を比較し、範囲内か超過しているかを返します。"
+        help="全PCの利用済み分数と視聴可能時間を比較し、範囲内か超過かを返します。"
     )
     parser_check_usage.add_argument("user_id", help="ユーザID (UUID)")
+    parser_check_usage.add_argument(
+        "--message-mode",
+        choices=["normal", "hover", "giant", "fileout", "fileout_only_message"],
+        default="normal",
+        help=(
+            "日本語メッセージの出力形式を指定します。\n"
+            " normal: 従来どおり\n"
+            " hover:  AHK用のマウスホバー表示に最適化された短いメッセージ\n"
+            " giant:  超過時に大きな警告を出す想定のメッセージ\n"
+            " fileout: 3ファイル出力 (_hover, _giant, _normal)\n"
+            " fileout_only_message: 3ファイル出力（ただし message_jp のみを書き込み）\n"
+            "  -o が無い場合は CSV 形式で3種をまとめて出力"
+        )
+    )
     parser_check_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
     # is-able-watch コマンド
@@ -364,26 +500,105 @@ def main():
     args = parser.parse_args()
 
     if args.command == "log-pc-activity":
-        result = log_pc_activity(args.user_id, args.pc_id, return_result=True)
+        result = log_pc_activity(args.user_id, args.pc_identifier, return_result=True)
         output_result(result, args.output)
+
     elif args.command == "check-watch-time":
         result = check_watch_time(args.user_id, return_result=True)
         output_result(result, args.output)
+
     elif args.command == "get-total-usage":
         result = get_total_usage(args.user_id, return_result=True)
         output_result(result, args.output)
+
     elif args.command == "get-pc-usage":
-        result = get_pc_usage(args.user_id, args.pc_id, return_result=True)
+        result = get_pc_usage(args.user_id, args.pc_identifier, return_result=True)
         output_result(result, args.output)
+
     elif args.command == "get-allowed-time":
         result = get_allowed_time(args.user_id, return_result=True)
         output_result(result, args.output)
+
     elif args.command == "check-usage":
-        result = check_usage(args.user_id, return_result=True)
-        output_result(result, args.output)
+        msg_mode = args.message_mode
+        user_id = args.user_id
+
+        if msg_mode == "fileout":
+            if args.output:
+                for mode in ["hover", "giant", "normal"]:
+                    res = check_usage(user_id, message_mode=mode, return_result=True)
+                    out_filename = f"{args.output}_{mode}"
+                    try:
+                        with open(out_filename, "w", encoding="utf-8") as f:
+                            f.write(res)
+                        print(f"Output to {out_filename}:")
+                        print(res)
+                        print("-----")
+                    except Exception:
+                        print("E")
+            else:
+                header = "mode,success,total_usage_minutes,allowed_watch_time_minutes,status,message_jp"
+                print(header)
+                for mode in ["hover", "giant", "normal"]:
+                    res = check_usage(user_id, message_mode=mode, return_result=True)
+                    try:
+                        data = json.loads(res)
+                        success = data.get("success", "")
+                        total_usage_minutes = data.get("total_usage_minutes", "")
+                        allowed_watch_time_minutes = data.get("allowed_watch_time_minutes", "")
+                        status = data.get("status", "")
+                        message_jp = data.get("message_jp", "")
+                        line = (
+                            f"{mode},{success},{total_usage_minutes},"
+                            f"{allowed_watch_time_minutes},{status},{message_jp}"
+                        )
+                    except Exception:
+                        line = f"{mode},E,,,,"
+                    print(line)
+
+        elif msg_mode == "fileout_only_message":
+            if args.output:
+                for mode in ["hover", "giant", "normal"]:
+                    res = check_usage(user_id, message_mode=mode, return_result=True)
+                    out_filename = f"{args.output}_{mode}"
+                    try:
+                        data = json.loads(res)
+                        # message_jp を取得。なければ空文字列
+                        message_jp = data.get("message_jp", "")
+                    except Exception:
+                        message_jp = "E"
+
+                    try:
+                        with open(out_filename, "w", encoding="utf-8") as f:
+                            f.write(message_jp)
+                        print(f"Output to {out_filename}:")
+                        print(message_jp)
+                        print("-----")
+                    except Exception:
+                        print("E")
+            else:
+                # CSV形式で標準出力へ (mode,message_jp のみ)
+                header = "mode,message_jp"
+                print(header)
+                for mode in ["hover", "giant", "normal"]:
+                    res = check_usage(user_id, message_mode=mode, return_result=True)
+                    try:
+                        data = json.loads(res)
+                        message_jp = data.get("message_jp", "")
+                        line = f"{mode},{message_jp}"
+                    except Exception:
+                        line = f"{mode},E"
+                    print(line)
+
+        else:
+            # 通常の check_usage
+            result = check_usage(user_id, message_mode=msg_mode, return_result=True)
+            output_result(result, args.output)
+
     elif args.command == "is-able-watch":
         result = is_able_watch(args.user_id, return_result=True)
         output_result(result, args.output)
+
     elif args.command == "insert-watch-log":
         result = insert_watch_log(args.user_id, args.added_minutes, return_result=True)
         output_result(result, args.output)

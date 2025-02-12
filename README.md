@@ -95,7 +95,16 @@ SUPABASE_API_KEY=your-supabase-api-key
 -- ユーザーの基本視聴時間を管理するテーブル
 CREATE TABLE users_watch_time (
     user_id UUID PRIMARY KEY,
+    user_name VARCHAR(255) NOT NULL,  -- ユーザー名を追加
     default_time INT NOT NULL DEFAULT 120  -- 初期視聴時間（分）
+);
+
+-- ユーザーが使用するPC情報を管理するテーブル
+CREATE TABLE user_pcs (
+    pc_id UUID PRIMARY KEY,
+    pc_name VARCHAR(255) NOT NULL,  -- PCの名前
+    user_id UUID NOT NULL,  -- users_watch_time テーブルとの関連付け
+    FOREIGN KEY (user_id) REFERENCES users_watch_time(user_id) ON DELETE CASCADE
 );
 
 -- PCアクティビティを記録するテーブル

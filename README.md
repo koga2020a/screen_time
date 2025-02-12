@@ -12,6 +12,7 @@
 - [セットアップ](#セットアップ)
   - [Python 環境および依存ライブラリ](#Python-環境および依存ライブラリ)
   - [.env ファイルの設定](#env-ファイルの設定)
+  - [Supabaseテーブルの設定](#supabaseテーブルの設定)
 - [コマンドの使い方](#コマンドの使い方)
   - [log-pc-activity](#log-pc-activity)
   - [check-watch-time](#check-watch-time)
@@ -85,6 +86,52 @@ SUPABASE_API_KEY=your-supabase-api-key
 ```
 
 ※ `.env` ファイルはセキュリティ上の理由から Git 管理から除外することを推奨します。
+
+### Supabaseテーブルの設定
+
+1. 以下のSQLコマンドを実行して、必要なテーブルを作成します：
+
+```sql
+-- ユーザーの基本視聴時間を管理するテーブル
+CREATE TABLE users_watch_time (
+    user_id UUID PRIMARY KEY,
+    default_time INT NOT NULL DEFAULT 120  -- 初期視聴時間（分）
+);
+
+-- PCアクティビティを記録するテーブル
+CREATE TABLE pc_activity (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    pc_id UUID NOT NULL,  -- PC識別ID
+    activity_time INT NOT NULL,  -- その日の 0:00 からの分数
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (user_id) REFERENCES users_watch_time(user_id) ON DELETE CASCADE
+);
+
+-- 視聴時間の増減ログを記録するテーブル
+CREATE TABLE watch_time_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    added_minutes INT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (user_id) REFERENCES users_watch_time(user_id) ON DELETE CASCADE
+);
+```
+
+2. ユーザーIDとPC IDの準備:
+   - ユーザーIDとPC IDには、UUID形式の値を使用します
+   - 複数のPCを監視する場合は、それぞれにユニークなUUIDを割り当てます
+   - UUIDは[オンラインジェネレーター](https://www.uuidgenerator.net/)などで生成できます
+
+3. 初期ユーザー設定の作成:
+   ```sql
+   -- ユーザーの基本設定を登録（必須）
+   -- user_idは実際に使用するUUIDに置き換えてください
+   INSERT INTO users_watch_time (user_id, default_time)
+   VALUES ('your-user-uuid-here', 120);
+   ```
+
+   ※ `default_time`は初期視聴可能時間（分）を指定します。上記例では120分（2時間）に設定しています。
 
 ---
 

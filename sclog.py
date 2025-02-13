@@ -7,8 +7,10 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 import os
-#from zoneinfo import ZoneInfo  # Python 3.9以上であれば標準のzoneinfoが利用可能
-from backports.zoneinfo import ZoneInfo
+if sys.version_info >= (3, 9):
+    from zoneinfo import ZoneInfo
+else:
+    from backports.zoneinfo import ZoneInfo
 
 # .envファイルから環境変数をロード
 load_dotenv()

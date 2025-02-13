@@ -55,9 +55,6 @@ Supabase の REST API を利用して、`users_watch_time`、`pc_activity`、`wa
 ## 前提条件
 
 - **Python 3.6 以上**  
-- 必要な Python ライブラリ:
-  - `requests`
-  - `python-dotenv`
 - **Supabase アカウント:**  
   Supabase の URL および API キーが必要です。  
 - **AutoHotkey:**  
@@ -69,11 +66,13 @@ Supabase の REST API を利用して、`users_watch_time`、`pc_activity`、`wa
 
 ### Python 環境および依存ライブラリ
 
-1. Python がインストールされていることを確認してください。  
-2. 必要なライブラリを pip でインストールします:
+1. Python がインストールされていることを確認してください。
+
+2. プロジェクトの依存パッケージはすべて `requirements.txt` に記載されています。  
+   以下のコマンドを実行することで、必要なライブラリが一括でインストールされます:
 
    ```bash
-   pip install requests python-dotenv
+   pip install -r requirements.txt
    ```
 
 ### .env ファイルの設定

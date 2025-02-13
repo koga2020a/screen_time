@@ -1,0 +1,6 @@
+requests
+python-dotenv
+load_dotenv
+datetime
+argparse
+uuid

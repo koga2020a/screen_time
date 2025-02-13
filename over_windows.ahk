@@ -10,7 +10,8 @@ global scResultTimeFile := screenTimeDir "\sc_result_time.txt"
 SetTimer, CheckFile, 20000  ; 20秒ごとに実行
 SetTimer, CheckWatchTime, 20000  ; 20秒ごとに `check-watch-time` を実行
 Menu, Tray, Tip, 初期化中...  ; 初回ツールチップ
-global watchTimeContent := "未取得"
+global watchTimeContent_giant := "未取得"
+global watchTimeContent_hover := "未取得"
 
 ; 起動時に `CheckWatchTime` を実行
 GoSub, CheckWatchTime
@@ -29,7 +30,7 @@ CheckFile:
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
     
-    if (fileContent = "T")
+    if (fileContent = "F")
     {
         if WinExist("WatchWindow")
         {
@@ -38,14 +39,14 @@ CheckFile:
             ; ウィンドウの作成（最前面）
             Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
             Gui, WatchWindow:Color, 0xCCCCCC
-            Gui, WatchWindow:Show, w1800 h900, WatchWindow
+            Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
             Gui, WatchWindow:Font, s20  ; フォントサイズを大きくする
-            Gui, WatchWindow:Add, Text, Center vWatchTimeText,  %watchTimeContent%  ; 初回のみ `Add, Text`
+            Gui, WatchWindow:Add, Text, Center vWatchTimeText,  %watchTimeContent_giant%  ; 初回のみ `Add, Text`
             Gui, WatchWindow:Show, , WatchWindow
     }
     else if (fileContent = "T")
     {
-        if WinExist("WatchWindow") ; GUI が表示されているときだけ破棄
+        if WinExist("WatchWindow") ; GUI が表示されているときだけ破棄a
         {
             Gui, WatchWindow:Destroy
         }
@@ -54,15 +55,18 @@ return
 
 CheckWatchTime:
     ; `check-watch-time` を実行
-    Run, python %screenTimeDir%\sclog.py check-watch-time %user_id% -o %scResultTimeFile%, , Hide
+    Run, python %screenTimeDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis , , Hide
 
     ; 3秒待機
     Sleep, 3000
 
     ; 結果を変数に格納
-    FileRead, watchTimeContent, %scResultTimeFile%
-    watchTimeContent := Trim(watchTimeContent)
+    FileRead, watchTimeContent_giant, %scResultTimeFile%_giant
+    watchTimeContent_giant := Trim(watchTimeContent_giant)
+
+    FileRead, watchTimeContent_hover, %scResultTimeFile%_hover
+    watchTimeContent_hover := Trim(watchTimeContent_hover)
 
     ; タスクトレイのツールチップを更新
-    Menu, Tray, Tip, % "視聴時間: " watchTimeContent
+    Menu, Tray, Tip, % "視聴時間: " watchTimeContent_hover
 return

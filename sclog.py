@@ -317,7 +317,6 @@ def check_usage(user_id, message_mode="normal", return_result=False):
         # fileout や fileout_only_message の時も、内部的には JSON を返す
         elif message_mode in ["fileout", "fileout_only_message"]:
             # JSONに message_jp が無い場合は空にする
-            # （実装の自由度大。必要なら message_jp="" を入れておく）
             res["message_jp"] = res.get("message_jp", "")
 
         result = json.dumps(res, ensure_ascii=False)
@@ -381,11 +380,21 @@ def insert_watch_log(user_id, added_minutes, return_result=False):
         result = "APIレスポンス: (空のレスポンス)"
     return result if return_result else print(result)
 
-def output_result(result, output_file):
-    """出力ファイルが指定されていればそのファイルへ、指定がなければ標準出力へ結果を出力します。"""
+def output_result(result, output_file, output_encoding="utf-8"):
+    """
+    出力ファイルが指定されていればそのファイルへ指定エンコードで出力し、
+    指定がなければ標準出力へ出力します。
+    """
+    # 標準出力の文字コードを変更（Python 3.7+）
+    # WindowsコンソールでCP932を使う場合などのための対策。
+    try:
+        sys.stdout.reconfigure(encoding=output_encoding)
+    except Exception:
+        pass
+
     if output_file:
         try:
-            with open(output_file, "w", encoding="utf-8") as f:
+            with open(output_file, "w", encoding=output_encoding) as f:
                 f.write(result)
         except Exception:
             print("E")
@@ -475,6 +484,13 @@ def main():
             "  -o が無い場合は CSV 形式で3種をまとめて出力"
         )
     )
+    # ここでエンコード指定を追加
+    parser_check_usage.add_argument(
+        "--encoding",
+        choices=["cp932", "sjis"],
+        default=None,
+        help="出力時のエンコードを指定します（cp932 または sjis）。省略時は utf-8。"
+    )
     parser_check_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
     # is-able-watch コマンド
@@ -522,6 +538,8 @@ def main():
     elif args.command == "check-usage":
         msg_mode = args.message_mode
         user_id = args.user_id
+        # エンコード設定（指定が無ければ utf-8）
+        out_enc = args.encoding or "utf-8"
 
         if msg_mode == "fileout":
             if args.output:
@@ -529,7 +547,7 @@ def main():
                     res = check_usage(user_id, message_mode=mode, return_result=True)
                     out_filename = f"{args.output}_{mode}"
                     try:
-                        with open(out_filename, "w", encoding="utf-8") as f:
+                        with open(out_filename, "w", encoding=out_enc) as f:
                             f.write(res)
                         print(f"Output to {out_filename}:")
                         print(res)
@@ -569,7 +587,7 @@ def main():
                         message_jp = "E"
 
                     try:
-                        with open(out_filename, "w", encoding="utf-8") as f:
+                        with open(out_filename, "w", encoding=out_enc) as f:
                             f.write(message_jp)
                         print(f"Output to {out_filename}:")
                         print(message_jp)
@@ -593,7 +611,7 @@ def main():
         else:
             # 通常の check_usage
             result = check_usage(user_id, message_mode=msg_mode, return_result=True)
-            output_result(result, args.output)
+            output_result(result, args.output, out_enc)
 
     elif args.command == "is-able-watch":
         result = is_able_watch(args.user_id, return_result=True)

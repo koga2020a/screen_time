@@ -398,7 +398,8 @@
     }
     // 初期値：今日（ローカル）
     const now = new Date();
-    document.getElementById('datePicker').value = formatDate(now);
+    const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9 に変換
+    document.getElementById('datePicker').value = formatDate(jstDate);
 
     // イベントリスナー
     document.getElementById('datePicker').addEventListener('change', fetchAndRenderAllDays);

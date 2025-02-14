@@ -126,20 +126,92 @@ CREATE TABLE watch_time_log (
 );
 ```
 
-2. ユーザーIDとPC IDの準備:
+2. 以下のストアドプロシージャを作成します：
+
+```sql
+-- 1. 指定した JST の日付と pc_id に基づいてレコードを取得するプロシージャ
+CREATE OR REPLACE FUNCTION get_pc_activity_by_pc_id(
+    p_pc_id UUID,      -- 検索対象のPC ID
+    p_jst_date DATE    -- 検索対象の日付（JST）
+)
+RETURNS TABLE (
+    id UUID,
+    pc_id UUID,
+    user_id UUID,
+    activity_time TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM pc_activity
+    WHERE pc_id = p_pc_id
+      -- JSTからUTCに変換して検索（-9時間）
+      AND created_at >= (p_jst_date - INTERVAL '9 hours')
+      AND created_at < (p_jst_date + INTERVAL '1 day' - INTERVAL '9 hours');
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. 指定した JST の日付と user_id に基づいて activity_time をユニークにしてレコードを取得するプロシージャ
+CREATE OR REPLACE FUNCTION get_unique_pc_activity_by_user_id(
+    p_user_id UUID,    -- 検索対象のユーザーID
+    p_jst_date DATE    -- 検索対象の日付（JST）
+)
+RETURNS TABLE (
+    id UUID,
+    pc_id UUID,
+    user_id UUID,
+    activity_time INTEGER,  -- TIMESTAMP WITH TIME ZONE から INTEGER に変更
+    created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT ON (pa.activity_time) 
+        pa.id,
+        pa.pc_id,
+        pa.user_id,
+        pa.activity_time,
+        pa.created_at
+    FROM pc_activity pa
+    WHERE pa.user_id = p_user_id
+      -- JSTからUTCに変換して検索（-9時間）
+      AND pa.created_at >= (p_jst_date - INTERVAL '9 hours')
+      AND pa.created_at < (p_jst_date + INTERVAL '1 day' - INTERVAL '9 hours')
+    ORDER BY pa.activity_time, pa.created_at;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+これらのストアドプロシージャは以下の機能を提供します：
+
+- `get_pc_activity_by_pc_id`:
+  - 特定のPCの指定日のアクティビティを取得
+  - JST（日本時間）での日付指定に対応
+  - 戻り値は指定PCの全アクティビティレコード
+
+- `get_unique_pc_activity_by_user_id`:
+  - 特定ユーザーの指定日のユニークなアクティビティ時間を取得
+  - 同じ activity_time の重複を除去（DISTINCT ON）
+  - JST（日本時間）での日付指定に対応
+  - 戻り値は時系列でソートされたユニークなアクティビティレコード
+
+3. ユーザーIDとPC IDの準備:
    - ユーザーIDとPC IDには、UUID形式の値を使用します
    - 複数のPCを監視する場合は、それぞれにユニークなUUIDを割り当てます
    - UUIDは[オンラインジェネレーター](https://www.uuidgenerator.net/)などで生成できます
 
-3. 初期ユーザー設定の作成:
+4. 初期ユーザー設定の作成:
    ```sql
    -- ユーザーの基本設定を登録（必須）
    -- user_idは実際に使用するUUIDに置き換えてください
-   INSERT INTO users_watch_time (user_id, default_time)
-   VALUES ('your-user-uuid-here', 120);
-   ```
+   INSERT INTO users_watch_time (user_id, user_name, default_time)
+   VALUES ('your-user-uuid-here', 'ユーザー名', 120);
 
-   ※ `default_time`は初期視聴可能時間（分）を指定します。上記例では120分（2時間）に設定しています。
+   -- PCの登録（必須）
+   -- pc_idは実際に使用するUUIDに置き換えてください
+   INSERT INTO user_pcs (pc_id, pc_name, user_id)
+   VALUES ('your-pc-uuid-here', 'PC1', 'your-user-uuid-here');
+   ```
 
 ---
 
@@ -312,4 +384,3 @@ python sclog.py insert-watch-log <user_id> <added_minutes>
 ---
 
 この README が環境設定およびツールの利用開始に役立つことを願っています。ご不明点や改善の提案があれば、お気軽にお問い合わせください。
-```

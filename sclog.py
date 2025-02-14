@@ -4,14 +4,10 @@ import argparse
 import requests
 import uuid
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import os
 import urllib.parse
-if sys.version_info >= (3, 9):
-    from zoneinfo import ZoneInfo
-else:
-    from backports.zoneinfo import ZoneInfo
 
 # .envファイルから環境変数をロード
 load_dotenv()
@@ -24,6 +20,9 @@ HEADERS = {
     "Authorization": f"Bearer {SUPABASE_API_KEY}",
     "Content-Type": "application/json",
 }
+
+# JST（日本標準時、UTC+9）の定義（固定オフセット）
+JST = timezone(timedelta(hours=9), name="JST")
 
 def is_valid_uuid(value):
     """指定された文字列が UUID 形式かどうかチェックします。"""
@@ -87,8 +86,7 @@ def get_activity_time():
     現在時刻を JST (日本標準時) で取得し、
     その日の 0:00 (JST) からの経過分数を返します。
     """
-    jst = ZoneInfo("Asia/Tokyo")
-    now = datetime.now(jst)
+    now = datetime.now(JST)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     minutes_since_midnight = int((now - midnight).total_seconds() / 60)
     return minutes_since_midnight
@@ -98,12 +96,11 @@ def get_today_range_utc():
     当日のUTCの開始時刻と終了時刻をISO8601形式（タイムゾーン情報付き）で返します。
     JSTの日付で当日を判定し、UTCに変換します。
     """
-    jst = ZoneInfo("Asia/Tokyo")
-    now_jst = datetime.now(jst)
+    now_jst = datetime.now(JST)
     start_jst = now_jst.replace(hour=0, minute=0, second=0, microsecond=0)
     end_jst = start_jst + timedelta(days=1)
-    start_utc = start_jst.astimezone(ZoneInfo("UTC"))
-    end_utc = end_jst.astimezone(ZoneInfo("UTC"))
+    start_utc = start_jst.astimezone(timezone.utc)
+    end_utc = end_jst.astimezone(timezone.utc)
     return start_utc.isoformat(), end_utc.isoformat()
 
 def log_pc_activity(user_id, pc_identifier, return_result=False):
@@ -161,17 +158,23 @@ def check_watch_time(user_id, return_result=False):
             return result if return_result else print(result)
         default_time = watch_data[0]["default_time"]
 
-        url_watch_log = f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}&select=added_minutes"
+        # 今日のUTC範囲（JSTの日付に対応）を取得して、watch_time_log をフィルタリングします。
+        start, end = get_today_range_utc()
+        start_enc = urllib.parse.quote(start, safe="")
+        end_enc = urllib.parse.quote(end, safe="")
+        url_watch_log = (
+            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
+            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
+            f"&select=added_minutes"
+        )
         response = requests.get(url_watch_log, headers=HEADERS)
         log_data = response.json() if response.text.strip() else []
         total_added_minutes = sum(log["added_minutes"] for log in log_data)
         total_allowed = default_time + total_added_minutes
 
         start, end = get_today_range_utc()
-        # URLエンコードを実施（+記号が%2Bに変換される）
         start_enc = urllib.parse.quote(start, safe="")
         end_enc = urllib.parse.quote(end, safe="")
-
         url_activity = (
             f"{SUPABASE_URL}/rest/v1/pc_activity?user_id=eq.{user_id}"
             f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=activity_time"
@@ -270,7 +273,15 @@ def get_allowed_time(user_id, return_result=False):
             return result if return_result else print(result)
         default_time = watch_data[0]["default_time"]
 
-        url_watch_log = f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}&select=added_minutes"
+        # 今日のUTC範囲でwatch_time_logをフィルタリング
+        start, end = get_today_range_utc()
+        start_enc = urllib.parse.quote(start, safe="")
+        end_enc = urllib.parse.quote(end, safe="")
+        url_watch_log = (
+            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
+            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
+            f"&select=added_minutes"
+        )
         response = requests.get(url_watch_log, headers=HEADERS)
         log_data = response.json() if response.text.strip() else []
         total_added = sum(log["added_minutes"] for log in log_data)
@@ -312,14 +323,21 @@ def check_usage(user_id, message_mode="normal", return_result=False):
             return result if return_result else print(result)
         default_time = watch_data[0]["default_time"]
 
-        url_watch_log = f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}&select=added_minutes"
+        # 今日のUTC範囲でwatch_time_logをフィルタリング
+        start, end = get_today_range_utc()
+        start_enc = urllib.parse.quote(start, safe="")
+        end_enc = urllib.parse.quote(end, safe="")
+        url_watch_log = (
+            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
+            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
+            f"&select=added_minutes"
+        )
         response_log = requests.get(url_watch_log, headers=HEADERS)
         log_data = response_log.json() if response_log.text.strip() else []
         total_added = sum(log["added_minutes"] for log in log_data)
         allowed = default_time + total_added
         status = "within allowed" if total_usage <= allowed else "exceeded allowed"
 
-        # 基本のJSONレスポンス
         res = {
             "success": True,
             "total_usage_minutes": total_usage,
@@ -327,7 +345,6 @@ def check_usage(user_id, message_mode="normal", return_result=False):
             "status": status
         }
 
-        # 追加の日本語メッセージ
         if message_mode in ["hover", "giant"]:
             if status == "within allowed":
                 remain = allowed - total_usage  # 残り分数
@@ -372,7 +389,15 @@ def is_able_watch(user_id, return_result=False):
                 result = "E"
             else:
                 default_time = watch_data[0]["default_time"]
-                url_watch_log = f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}&select=added_minutes"
+                # 今日のUTC範囲でwatch_time_logをフィルタリング
+                start, end = get_today_range_utc()
+                start_enc = urllib.parse.quote(start, safe="")
+                end_enc = urllib.parse.quote(end, safe="")
+                url_watch_log = (
+                    f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
+                    f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
+                    f"&select=added_minutes"
+                )
                 resp_log = requests.get(url_watch_log, headers=HEADERS)
                 if resp_log.status_code != 200:
                     result = "E"
@@ -380,6 +405,7 @@ def is_able_watch(user_id, return_result=False):
                     log_data = resp_log.json() if resp_log.text.strip() else []
                     total_added = sum(item["added_minutes"] for item in log_data)
                     allowed = default_time + total_added
+
                     start, end = get_today_range_utc()
                     start_enc = urllib.parse.quote(start, safe="")
                     end_enc = urllib.parse.quote(end, safe="")

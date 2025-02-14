@@ -4,3 +4,4 @@ load_dotenv
 datetime
 argparse
 uuid
+urllib.parse

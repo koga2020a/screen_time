@@ -1,3 +1,6 @@
+以下は、追加したストアドプロシージャの説明を反映した更新後の **README.md** ファイルの例です。
+
+```markdown:README.md
 # Screen Time Management CLI ツール
 
 このリポジトリは、PCのアクティビティログおよび視聴時間の管理を行うための CLI ツールと、Windows 環境での自動実行をサポートする AutoHotkey スクリプトを提供します。Python スクリプトで各種コマンドを実装しており、Supabase をバックエンドにしてデータの記録・照会を行います。
@@ -10,9 +13,9 @@
 - [特徴](#特徴)
 - [前提条件](#前提条件)
 - [セットアップ](#セットアップ)
-  - [Python 環境および依存ライブラリ](#Python-環境および依存ライブラリ)
+  - [Python 環境および依存ライブラリ](#python-環境および依存ライブラリ)
   - [.env ファイルの設定](#env-ファイルの設定)
-  - [Supabaseテーブルの設定](#supabaseテーブルの設定)
+  - [Supabaseテーブルの設定](#supabasetableの設定)
 - [コマンドの使い方](#コマンドの使い方)
   - [log-pc-activity](#log-pc-activity)
   - [check-watch-time](#check-watch-time)
@@ -24,6 +27,7 @@
   - [insert-watch-log](#insert-watch-log)
 - [AutoHotkey スクリプト (over_windows.ahk) について](#autohotkey-スクリプト-over_windowsahk-について)
 - [トラブルシューティング](#トラブルシューティング)
+- [追加したストアドプロシージャの説明](#追加したストアドプロシージャの説明)
 - [ライセンス](#ライセンス)
 
 ---
@@ -181,19 +185,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```
-
-これらのストアドプロシージャは以下の機能を提供します：
-
-- `get_pc_activity_by_pc_id`:
-  - 特定のPCの指定日のアクティビティを取得
-  - JST（日本時間）での日付指定に対応
-  - 戻り値は指定PCの全アクティビティレコード
-
-- `get_unique_pc_activity_by_user_id`:
-  - 特定ユーザーの指定日のユニークなアクティビティ時間を取得
-  - 同じ activity_time の重複を除去（DISTINCT ON）
-  - JST（日本時間）での日付指定に対応
-  - 戻り値は時系列でソートされたユニークなアクティビティレコード
 
 3. ユーザーIDとPC IDの準備:
    - ユーザーIDとPC IDには、UUID形式の値を使用します
@@ -377,10 +368,64 @@ python sclog.py insert-watch-log <user_id> <added_minutes>
 
 ---
 
-## ライセンス
+## 追加したストアドプロシージャの説明
 
-このプロジェクトはMITライセンスの下で公開されています。
+### get_watch_time_total
+このストアドプロシージャは、指定したユーザID（UUID）に対して、開始日から終了日までの期間における `watch_time_log` テーブル内の視聴時間増減分（`added_minutes`）の合計を計算します。  
+- **パラメータ:**  
+  - `p_uuid`: 対象のユーザID（UUID）  
+  - `p_start_date`: 集計の開始日（`date`型）  
+  - `p_end_date`: 集計の終了日（`date`型）  
+- **処理内容:**  
+  - 指定された期間内で、Asia/Tokyo タイムゾーンに合わせた日時範囲内のレコードから `added_minutes` の合計を算出します。  
+  - 取得結果が NULL である場合は、0 を返します。
+
+**ソースコード例:**
+```sql
+CREATE OR REPLACE FUNCTION public.get_watch_time_total(
+    p_uuid uuid,
+    p_start_date date,
+    p_end_date date
+)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    total integer;
+BEGIN
+    SELECT COALESCE(SUM(added_minutes), 0)
+      INTO total
+      FROM watch_time_log
+     WHERE user_id = p_uuid
+       AND created_at >= p_start_date::timestamp AT TIME ZONE 'Asia/Tokyo'
+       AND created_at <  (p_end_date::timestamp + interval '1 day') AT TIME ZONE 'Asia/Tokyo';
+       
+    RETURN total;
+END;
+$$;
+```
+
+### get_default_time
+このストアドプロシージャは、ユーザに対するデフォルトの視聴可能時間を返します。  
+- **処理内容:**  
+  - 現在は例として 30 分のデフォルト視聴時間を返す実装となっています。  
+  - 将来的にユーザごとに異なる初期値の設定が可能となる場合、ここを変更する基盤となります。
+
+**ソースコード例:**
+```sql
+CREATE OR REPLACE FUNCTION public.get_default_time()
+RETURNS TABLE(default_time integer) AS $$
+BEGIN
+  RETURN QUERY SELECT 30;
+END;
+$$ LANGUAGE plpgsql STABLE;
+```
 
 ---
 
-この README が環境設定およびツールの利用開始に役立つことを願っています。ご不明点や改善の提案があれば、お気軽にお問い合わせください。
+## ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。
+```
+
+このように、README.md の末尾に「追加したストアドプロシージャの説明」というセクションを新設し、各プロシージャの概要とソースコード例を追記することで、利用者に新たなSQL機能の用途や挙動が分かりやすくなります。

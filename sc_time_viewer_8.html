@@ -67,6 +67,14 @@
       font-weight: bold;
       margin-bottom: 10px;
     }
+    /* 各日セット内の延長時間／視聴時間表示 */
+    .total-view-label,
+    .total-extension-label {
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 6px;
+    }
     /* セット内：左側タイムマーカー、右側グラフ群 */
     .day-content {
       display: flex;
@@ -287,6 +295,63 @@
       wrapper.appendChild(timeline);
       return wrapper;
     }
+    async function fetchTotalExtensionTime(targetUserId, dateStr, totalExtensionLabel) {
+      try {
+        // まず、デフォルトの延長時間を取得する RPC を呼び出します（例: rpc/get_default_time）
+        const defaultTimeResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_default_time`,
+          {
+            method: "POST",
+            headers: {
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              // ※必要なパラメータがあればここに記述
+            })
+          }
+        );
+        if (!defaultTimeResponse.ok) {
+          throw new Error("defaultTime の取得に失敗しました");
+        }
+        const defaultTimeData = await defaultTimeResponse.json();
+        const defaultTime = defaultTimeData?.[0]?.default_time ?? 0;
+
+        // 次に、総延長時間を取得する RPC を呼び出します
+        const totalExtensionResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_total`,
+          {
+            method: "POST",
+            headers: {
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              p_uuid: targetUserId,
+              p_start_date: dateStr,
+              p_end_date: dateStr
+            })
+          }
+        );
+        if (!totalExtensionResponse.ok) {
+          const errorData = await totalExtensionResponse.json().catch(e => null);
+          throw new Error("RPC get_watch_time_total の取得に失敗: " + totalExtensionResponse.statusText);
+        }
+        const totalExtensionTimeData = await totalExtensionResponse.json();
+        // RPC の戻り値が数値で返る場合と、配列の場合など実装に合わせて調整してください
+        const totalMinutes = parseInt(totalExtensionTimeData) || 0;
+        // ここでは、利用可能な延長時間（defaultTime）を加算して残りを計算する例です
+        const limitMinutes = totalMinutes + defaultTime;
+        const remainingMinutes = Math.max(0, limitMinutes - totalMinutes);
+
+        totalExtensionLabel.textContent = `延長（${totalMinutes}分） 残り: ${remainingMinutes}分`;
+      } catch (error) {
+        console.error("エラー詳細:", error.message);
+        totalExtensionLabel.textContent = "延長時間データの取得に失敗しました";
+      }
+    }
     // １日のセット生成：各日ごとにPC別タイムライン＋総視聴タイムラインを横並びで表示
     async function renderDaySet(dateStr, pcData) {
       const daySet = document.createElement('div');
@@ -297,10 +362,15 @@
       dayLabel.textContent = dateStr;
       daySet.appendChild(dayLabel);
 
-      // 総視聴時間表示用の要素を各日付セットに追加
+      // 総視聴時間表示用の要素を追加
       const totalViewLabel = document.createElement('div');
       totalViewLabel.className = 'total-view-label';
       daySet.appendChild(totalViewLabel);
+
+      // 総延長時間表示用の要素を追加（※日付の下に表示）
+      const totalExtensionLabel = document.createElement('div');
+      totalExtensionLabel.className = 'total-extension-label';
+      daySet.appendChild(totalExtensionLabel);
 
       const dayContent = document.createElement('div');
       dayContent.className = 'day-content';
@@ -328,9 +398,8 @@
         );
         const activityData = await activityResponse.json();
 
-        // レコード数をカウントして日付ラベルに表示
-        const recordCount = activityData.length;
-        dayLabel.textContent = `${dateStr} (${recordCount} 件)`;
+        // 日付ラベル更新
+        dayLabel.textContent = `${dateStr} `;
 
         const pcNameMap = new Map(pcData.map(pc => [pc.pc_id, pc.pc_name]));
         // PCごとにアクティビティをグループ化
@@ -379,6 +448,7 @@
         const targetUserId = activityData.length > 0 ? activityData[0].user_id : null;
         
         if (targetUserId) {
+          // 総視聴時間用RPC の呼び出し
           const uniqueActivityResponse = await fetch(
             `${SUPABASE_URL}/rest/v1/rpc/get_unique_pc_activity_by_user_id`,
             {
@@ -397,26 +467,20 @@
 
           if (!uniqueActivityResponse.ok) {
             console.error("RPC 呼び出しに失敗しました:", uniqueActivityResponse.statusText);
-            // エラーの詳細を確認
             const errorData = await uniqueActivityResponse.json().catch(e => null);
             console.error("エラーの詳細:", errorData);
             totalViewLabel.textContent = "データの取得に失敗しました";
           } else {
             const uniqueActivityData = await uniqueActivityResponse.json();
-            // CSVデータとして出力
-            const csvData = `userId,date,activityTime\n${uniqueActivityData.map(record => 
-              `${record.user_id},${dateStr},${record.activity_time}`
-            ).join('\n')}`;
-            /*console.log("CSV形式のデータ:\n", csvData);*/
             const totalViewTime = Array.isArray(uniqueActivityData) ? uniqueActivityData.length : 0;
             totalViewLabel.textContent = `総視聴時間: ${totalViewTime} 分`;
           }
+
+          // 延長時間の取得は fetchTotalExtensionTime を呼び出すことで実施
+          await fetchTotalExtensionTime(targetUserId, dateStr, totalExtensionLabel);
         } else {
-          /*console.log("ユーザーID未取得:", {
-            activityDataLength: activityData.length,
-            firstRecord: activityData[0]
-          });*/
           totalViewLabel.textContent = "ユーザーデータがありません";
+          totalExtensionLabel.textContent = "ユーザーデータがありません";
         }
       } catch (error) {
         console.error('Error fetching data for', dateStr, error);

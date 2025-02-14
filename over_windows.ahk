@@ -33,21 +33,29 @@ CheckFile:
 
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
-    
     if (fileContent = "F") {
-        if WinExist("WatchWindow") {
-            Gui, WatchWindow:Destroy
+        if (A_ComputerName ~= "DESKTOP") {
+            ; 画面の幅と高さを取得
+            SysGet, MonitorWorkArea, MonitorWorkArea
+            ; 画面の右下に表示（右端から20ピクセル、下端から40ピクセル）
+            CoordMode, ToolTip, Screen
+            ToolTip, %watchTimeContent_giant%, % MonitorWorkAreaRight - 20, % MonitorWorkAreaBottom - 40
+        } else {
+            if WinExist("WatchWindow") {
+                Gui, WatchWindow:Destroy
+            }
+            Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
+            Gui, WatchWindow:Color, 0xCCCCCC
+            Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
+            Gui, WatchWindow:Font, s20
+            Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
+            Gui, WatchWindow:Show, , WatchWindow
         }
-        Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
-        Gui, WatchWindow:Color, 0xCCCCCC
-        Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
-        Gui, WatchWindow:Font, s20
-        Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
-        Gui, WatchWindow:Show, , WatchWindow
     } else if (fileContent = "T") {
         if WinExist("WatchWindow") {
             Gui, WatchWindow:Destroy
         }
+        ToolTip  ; ToolTipを消去
     }
 return
 

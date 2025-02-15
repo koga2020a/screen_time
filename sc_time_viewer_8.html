@@ -383,15 +383,16 @@
           graphsContainer.innerHTML = '<div class="loading">この日のデータはありません</div>';
         } else {
           // 各PCのタイムライン描画
-          usageData.forEach(row => {
+          for (const row of usageData) {
             let timeRanges = row.time_ranges;
             if (typeof timeRanges === 'string') {
               timeRanges = JSON.parse(timeRanges);
             }
             timeRanges = mergeTimeRanges(timeRanges);
-            const timeline = createTimelineFromRanges(row.pc_id, timeRanges, row.activity_count);
+            const pcName = await getPcName(row.pc_id);
+            const timeline = createTimelineFromRanges(pcName, timeRanges, row.activity_count);
             graphsContainer.appendChild(timeline);
-          });
+          }
         }
 
         console.log('Request to get_total_watch_time:', {
@@ -494,6 +495,34 @@
     });
     
     fetchAndRenderAllDays();
+
+    // PC名を取得する関数を追加
+    async function getPcName(pcId) {
+      const requestBody = {
+        p_pc_id: pcId
+      };
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_pc_name`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`PC name fetch error: ${response.status}`);
+        }
+
+        const pcName = await response.json();
+        return pcName || pcId; // PCの名前が取得できない場合はIDを返す
+      } catch (error) {
+        console.error('Error fetching PC name:', error);
+        return pcId; // エラーの場合はIDを返す
+      }
+    }
   </script>
 </body>
 </html>

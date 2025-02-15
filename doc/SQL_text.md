@@ -369,6 +369,27 @@ $$ LANGUAGE plpgsql;
 
 ---
 
+## 3.7 pc_name 取得用関数
+
+```sql:doc/SQL_text.md
+CREATE OR REPLACE FUNCTION get_pc_name(p_pc_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+    v_pc_name TEXT;
+BEGIN
+    SELECT pc_name INTO v_pc_name
+    FROM user_pcs
+    WHERE pc_id = p_pc_id;
+    
+    RETURN v_pc_name;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 使用例:
+-- SELECT get_pc_name('your-pc-id-uuid-here');
+```
+
+
 ## 4. トリガーの作成
 
 ```sql:doc/SQL_text.md

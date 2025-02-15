@@ -1,6 +1,4 @@
-以下は、追加したストアドプロシージャの説明を反映した更新後の **README.md** ファイルの例です。
 
-```markdown:README.md
 # Screen Time Management CLI ツール
 
 このリポジトリは、PCのアクティビティログおよび視聴時間の管理を行うための CLI ツールと、Windows 環境での自動実行をサポートする AutoHotkey スクリプトを提供します。Python スクリプトで各種コマンドを実装しており、Supabase をバックエンドにしてデータの記録・照会を行います。

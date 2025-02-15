@@ -1,6 +1,7 @@
 global screenTimeDir := "c:\src\screen_time"
 global user_id := "b4e45080-6c59-43e0-a644-ecbf07eace02"
 global pc_id := "4e27bdfa-83f9-437f-a06b-0fc108c99039"  ; gam
+; 9e7ec6df-31af-4e88-ba60-66783d50bc08  ; H1
 global isAbleWatchFile := screenTimeDir "\is_able_watch.txt"
 global scResultTimeFile := screenTimeDir "\sc_result_time.txt"
 
@@ -33,21 +34,29 @@ CheckFile:
 
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
-    
     if (fileContent = "F") {
-        if WinExist("WatchWindow") {
-            Gui, WatchWindow:Destroy
+        if (A_ComputerName ~= "DESKTOP") {
+            ; 画面の幅と高さを取得
+            SysGet, MonitorWorkArea, MonitorWorkArea
+            ; 画面の右下に表示（右端から20ピクセル、下端から40ピクセル）
+            CoordMode, ToolTip, Screen
+            ToolTip, %watchTimeContent_giant%, % MonitorWorkAreaRight - 20, % MonitorWorkAreaBottom - 40
+        } else {
+            if WinExist("WatchWindow") {
+                Gui, WatchWindow:Destroy
+            }
+            Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
+            Gui, WatchWindow:Color, 0xCCCCCC
+            Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
+            Gui, WatchWindow:Font, s20
+            Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
+            Gui, WatchWindow:Show, , WatchWindow
         }
-        Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
-        Gui, WatchWindow:Color, 0xCCCCCC
-        Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
-        Gui, WatchWindow:Font, s20
-        Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
-        Gui, WatchWindow:Show, , WatchWindow
     } else if (fileContent = "T") {
         if WinExist("WatchWindow") {
             Gui, WatchWindow:Destroy
         }
+        ToolTip  ; ToolTipを消去
     }
 return
 

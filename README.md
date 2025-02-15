@@ -26,6 +26,7 @@
   - [is-able-watch](#is-able-watch)
   - [insert-watch-log](#insert-watch-log)
 - [AutoHotkey スクリプト (over_windows.ahk) について](#autohotkey-スクリプト-over_windowsahk-について)
+- [変更点と注意事項](#変更点と注意事項)
 - [トラブルシューティング](#トラブルシューティング)
 - [追加したストアドプロシージャの説明](#追加したストアドプロシージャの説明)
 - [ライセンス](#ライセンス)
@@ -350,6 +351,35 @@ python sclog.py insert-watch-log <user_id> <added_minutes>
 - `scResultTimeFile`: `check-watch-time` の結果が出力されるファイルパス
 
 これらの値は、自身の環境に合わせて適宜変更してください。
+
+---
+
+## 変更点と注意事項
+
+今回の更新では、以下の修正点および仕様変更を実施しています。
+
+- **ペイロード形式の変更:**  
+  以前は、Supabase の RPC 呼び出し時に配列形式や異なる形式のペイロードを使用していました。  
+  今回は、`sc_time_viewer_8.html` 内の `renderDaySet` 関数で、Supabase へのリクエストペイロードを次の JSON オブジェクト形式に統一しました:
+  ```json
+  {
+    "target_user_id": "<ユーザID>",
+    "target_date": "<YYYY-MM-DD>"
+  }
+  ```
+  これにより、各 RPC 関数（`get_time_ranges_by_user`、`get_total_watch_time`、`analyze_time_difference`）へ正確なパラメータが渡されるようになりました。
+
+- **エラーハンドリングの強化:**  
+  API 呼び出し後のレスポンスにおいて、エラーが発生した場合は詳細なエラーメッセージをコンソールに出力するよう実装を強化しました。  
+  これにより、Supabase 側のエラー内容を把握しやすくなっています。
+
+- **仕様変更の背景:**  
+  - ペイロード形式の統一により、バックエンド側でのパラメータ検証やエラー検知が容易になるとともに、デバッグ作業の効率向上を図りました。  
+  - 今後、Supabase の API 仕様に変更があった場合は、同様の形式修正が必要になる可能性があります。
+
+- **注意点:**  
+  - Supabase 側で実装している SQL ファンクションの引数定義が、今回のペイロード形式と合致しているか確認してください。  
+  - フロントエンド（`sc_time_viewer_8.html`）およびバックエンド両面での動作確認を十分に行ってください。
 
 ---
 

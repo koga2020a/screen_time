@@ -14,7 +14,7 @@
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       padding: 20px;
-      max-width: 1200px;
+      max-width: 1500px;
       margin: 0 auto;
     }
     /* 上部：日付選択＋矢印ボタン */
@@ -97,11 +97,13 @@
     .graphs-container {
       display: flex;
       flex: 1;
-      flex-direction: column;
+      flex-direction: row;
       gap: 10px;
       overflow-x: auto;
       height: 100%;
+      justify-content: center;
     }
+
     /* 各タイムライン（1PCまたは総視聴）のラッパー */
     .timeline-wrapper {
       display: inline-block;
@@ -287,11 +289,11 @@
       container.appendChild(title);
       
       const p1 = document.createElement('p');
-      p1.textContent = `合計視聴時間: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, デフォルト: ${totalData.default_time}分)`;
+      p1.textContent = `許可: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, ベース: ${totalData.default_time}分)`;
       container.appendChild(p1);
       
       const p2 = document.createElement('p');
-      p2.textContent = `実際の利用時間: ${diffData.total_watch_time}分, ユニーク: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
+      p2.textContent = `視聴時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
       container.appendChild(p2);
       
       return container;
@@ -333,7 +335,16 @@
       const dayLabel = document.createElement('div');
       dayLabel.className = 'day-label';
       dayLabel.textContent = dateStr;
+      
+      // 視聴時間の表示を追加
+      const totalViewLabel = document.createElement('div');
+      totalViewLabel.className = 'total-view-label';
+      const totalExtensionLabel = document.createElement('div');
+      totalExtensionLabel.className = 'total-extension-label';
+      
       daySet.appendChild(dayLabel);
+      daySet.appendChild(totalViewLabel);
+      daySet.appendChild(totalExtensionLabel);
       
       const dayContent = document.createElement('div');
       dayContent.className = 'day-content';
@@ -439,9 +450,9 @@
         const diffDataArray = await diffResponse.json();
         const diffData = diffDataArray[0] || {};
         
-        // 分析サマリーを追加表示
-        const analysisElement = createWatchingAnalysisElement(totalData, diffData);
-        graphsContainer.appendChild(analysisElement);
+        // 分析サマリーを day-label の下に表示
+        totalViewLabel.textContent = `許可: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, ベース: ${totalData.default_time}分)`;
+        totalExtensionLabel.textContent = `利用時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
         
       } catch (error) {
         console.error('Error details:', error);

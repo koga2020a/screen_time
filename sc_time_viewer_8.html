@@ -89,6 +89,7 @@
     .graphs-container {
       display: flex;
       flex: 1;
+      flex-direction: column;
       gap: 10px;
       overflow-x: auto;
       height: 100%;
@@ -133,6 +134,13 @@
     .error {
       color: #dc2626;
     }
+    .analysis-summary {
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+      margin-top: 10px;
+      font-size: 0.9em;
+      color: #444;
+    }
   </style>
 </head>
 <body>
@@ -156,6 +164,8 @@
   <script>
     const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+    // 固定のユーザーID（適宜変更してください）
+    const USER_ID = 'b4e45080-6c59-43e0-a644-ecbf07eace02';
 
     // ヘルパー関数：分を HH:MM 形式に
     function getTimeString(minutes) {
@@ -166,27 +176,119 @@
     function getMinutesFromTime(hours, minutes) {
       return hours * 60 + minutes;
     }
-    // JST日付文字列からUTC検索範囲を算出（どちらも同じ基準：5:00～23:59）
-    function getUTCDateRange(jstDateStr) {
-      const jstDate = new Date(jstDateStr);
-      const startDate = new Date(Date.UTC(
-        jstDate.getFullYear(),
-        jstDate.getMonth(),
-        jstDate.getDate(),
-        -9, 0, 0
-      ));
-      const endDate = new Date(Date.UTC(
-        jstDate.getFullYear(),
-        jstDate.getMonth(),
-        jstDate.getDate(),
-        14, 59, 59
-      ));
+    // 時刻文字列（例："16:50-16:50"）をパースして開始・終了分を取得するように修正
+    function parseTimeRange(rangeStr) {
+      const [startStr, endStr] = rangeStr.split('-');
+      const [startHour, startMin] = startStr.split(':').map(n => parseInt(n, 10));
+      const [endHour, endMin] = endStr.split(':').map(n => parseInt(n, 10));
       return {
-        start: startDate.toISOString(),
-        end: endDate.toISOString()
+        start: startHour * 60 + startMin,
+        end: endHour * 60 + endMin
       };
     }
-    // タイムマーカー生成（参考コードのマーカーと同じ：05:00, 08:00, 11:00, 14:00, 17:00, 20:00, 23:00）
+    // 時間帯をマージする補助関数
+    function mergeTimeRanges(ranges) {
+      // 重複を除去
+      ranges = [...new Set(ranges)];
+      
+      // 文字列を数値に変換してソート
+      const parsed = ranges.map(range => parseTimeRange(range))
+        .sort((a, b) => a.start - b.start);
+      
+      // 連続する時間帯をマージ
+      const merged = [];
+      let current = null;
+      
+      for (const range of parsed) {
+        if (!current) {
+          current = {...range};
+          continue;
+        }
+        
+        if (range.start <= current.end) {
+          current.end = Math.max(current.end, range.end);
+        } else {
+          merged.push(`${getTimeString(current.start)}-${getTimeString(current.end)}`);
+          current = {...range};
+        }
+      }
+      
+      if (current) {
+        merged.push(`${getTimeString(current.start)}-${getTimeString(current.end)}`);
+      }
+      
+      return merged;
+    }
+    // 新たなタイムライン描画関数：時間帯文字列の配列から描画
+    function createTimelineFromRanges(pcName, timeRanges, activityCount, isTotal = false) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'timeline-wrapper';
+      
+      const pcInfo = document.createElement('div');
+      pcInfo.className = 'pc-info';
+      
+      const title = document.createElement('h2');
+      title.className = 'pc-title';
+      title.textContent = isTotal ? '総視聴時間' : pcName;
+      title.title = title.textContent;
+      pcInfo.appendChild(title);
+      
+      const totalMins = document.createElement('div');
+      totalMins.className = 'total-minutes';
+      totalMins.textContent = `${activityCount}回`;
+      pcInfo.appendChild(totalMins);
+      
+      wrapper.appendChild(pcInfo);
+      
+      const timeline = document.createElement('div');
+      timeline.className = `timeline ${isTotal ? 'total-usage' : ''}`;
+      timeline.style.position = 'relative';
+      timeline.style.height = '400px';
+      
+      const startMargin = getMinutesFromTime(5, 0);
+      const endMargin = getMinutesFromTime(23, 59);
+      const totalRange = endMargin - startMargin + 1;
+      
+      timeRanges.forEach(rangeStr => {
+        const { start, end } = parseTimeRange(rangeStr);
+        // 利用可能な時間帯のみ描画
+        if (start < startMargin || end > endMargin) return;
+        const segDiv = document.createElement('div');
+        const topPercent = ((start - startMargin) / totalRange) * 170;
+        const heightPercent = ((end - start + 1) / totalRange) * 170;
+        segDiv.style.position = 'absolute';
+        segDiv.style.left = '0';
+        segDiv.style.right = '0';
+        segDiv.style.top = `${topPercent}%`;
+        segDiv.style.height = `${heightPercent}%`;
+        segDiv.style.borderRadius = '2px';
+        segDiv.style.backgroundColor = isTotal ? '#22c55e' : '#2563eb';
+        segDiv.title = `${getTimeString(start)} - ${getTimeString(end)}`;
+        timeline.appendChild(segDiv);
+      });
+      
+      wrapper.appendChild(timeline);
+      return wrapper;
+    }
+    // 分析結果をまとめて表示するDOM要素を生成
+    function createWatchingAnalysisElement(totalData, diffData) {
+      const container = document.createElement('div');
+      container.className = 'analysis-summary';
+      const title = document.createElement('h3');
+      title.textContent = '視聴時間分析';
+      container.appendChild(title);
+      
+      const p1 = document.createElement('p');
+      p1.textContent = `合計視聴時間: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, デフォルト: ${totalData.default_time}分)`;
+      container.appendChild(p1);
+      
+      const p2 = document.createElement('p');
+      p2.textContent = `実際の利用時間: ${diffData.total_watch_time}分, ユニーク: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
+      container.appendChild(p2);
+      
+      return container;
+    }
+    // タイムマーカー生成（05:00, 08:00, 11:00, 14:00, 17:00, 20:00, 23:00）
     function createTimeMarkers() {
       const container = document.createElement('div');
       container.className = 'time-markers';
@@ -205,168 +307,144 @@
       });
       return container;
     }
-    // タイムライン描画（参考コードと同じ計算方法）
-    function createTimeline(pcName, usedMinutes, isTotal = false, minuteOverlaps = null) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'timeline-wrapper';
-
-      const pcInfo = document.createElement('div');
-      pcInfo.className = 'pc-info';
-
-      const title = document.createElement('h2');
-      title.className = 'pc-title';
-      title.textContent = isTotal ? '総視聴時間' : pcName;
-      title.title = title.textContent;
-      pcInfo.appendChild(title);
-
-      const totalMins = document.createElement('div');
-      totalMins.className = 'total-minutes';
-      totalMins.textContent = `${usedMinutes.size}分`;
-      pcInfo.appendChild(totalMins);
-
-      wrapper.appendChild(pcInfo);
-
-      const timeline = document.createElement('div');
-      timeline.className = `timeline ${isTotal ? 'total-usage' : ''}`;
-      timeline.style.position = 'relative';
-      timeline.style.height = '400px';
-
-      const startMinutes = getMinutesFromTime(5, 0);
-      const endMinutes = getMinutesFromTime(23, 59);
-      const totalRange = endMinutes - startMinutes + 1;
-
-      const filteredUsed = new Set([...usedMinutes].filter(m => m >= startMinutes && m <= endMinutes));
-
-      // 利用時間の連続区間を生成（重複有無も考慮）
-      const segments = [];
-      const sortedMinutes = Array.from(filteredUsed).sort((a, b) => a - b);
-      let currentSegment = null;
-      sortedMinutes.forEach(m => {
-        const isOverlap = minuteOverlaps && minuteOverlaps.has(m);
-        if (currentSegment === null) {
-          currentSegment = { start: m, end: m, overlap: isOverlap };
-        } else {
-          if (m === currentSegment.end + 1 && isOverlap === currentSegment.overlap) {
-            currentSegment.end = m;
-          } else {
-            segments.push(currentSegment);
-            currentSegment = { start: m, end: m, overlap: isOverlap };
-          }
-        }
-      });
-      if (currentSegment) segments.push(currentSegment);
-
-      // 各セグメントを絶対配置で描画
-      segments.forEach(segment => {
-        const segDiv = document.createElement('div');
-        const topPercent = ((segment.start - startMinutes) / totalRange) * 170;
-        const heightPercent = ((segment.end - segment.start + 1) / totalRange) * 170;
-        segDiv.style.position = 'absolute';
-        segDiv.style.left = '0';
-        segDiv.style.right = '0';
-        segDiv.style.top = `${topPercent}%`;
-        segDiv.style.height = `${heightPercent}%`;
-        segDiv.style.borderRadius = '2px';
-        segDiv.style.backgroundColor = isTotal 
-          ? (segment.overlap ? '#dc2626' : '#22c55e') 
-          : '#2563eb';
-        segDiv.title = `${getTimeString(segment.start)} - ${getTimeString(segment.end)}${segment.overlap ? ' (複数PC使用)' : ''}`;
-        timeline.appendChild(segDiv);
-      });
-
-      wrapper.appendChild(timeline);
-      return wrapper;
-    }
-    // １日のセット生成：各日ごとにPC別タイムライン＋総視聴タイムラインを横並びで表示
-    async function renderDaySet(dateStr, pcData) {
-      const daySet = document.createElement('div');
-      daySet.className = 'day-set';
-
-      const dayLabel = document.createElement('div');
-      dayLabel.className = 'day-label';
-      dayLabel.textContent = dateStr;
-      daySet.appendChild(dayLabel);
-
-      const dayContent = document.createElement('div');
-      dayContent.className = 'day-content';
-
-      const markersContainer = createTimeMarkers();
-      dayContent.appendChild(markersContainer);
-
-      const graphsContainer = document.createElement('div');
-      graphsContainer.className = 'graphs-container';
-      graphsContainer.innerHTML = '<div class="loading">データを読み込んでいます...</div>';
-      dayContent.appendChild(graphsContainer);
-
-      daySet.appendChild(dayContent);
-
-      try {
-        const dateRange = getUTCDateRange(dateStr);
-        const activityResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/pc_activity?select=*&created_at=gte.${dateRange.start}&created_at=lte.${dateRange.end}`,
-          {
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            }
-          }
-        );
-        const activityData = await activityResponse.json();
-        const pcNameMap = new Map(pcData.map(pc => [pc.pc_id, pc.pc_name]));
-        // PCごとにアクティビティをグループ化
-        const groupedByPC = {};
-        activityData.forEach(record => {
-          const pcName = pcNameMap.get(record.pc_id) || record.pc_id;
-          if (!groupedByPC[pcName]) {
-            groupedByPC[pcName] = new Set();
-          }
-          groupedByPC[pcName].add(record.activity_time);
-        });
-        graphsContainer.innerHTML = '';
-        // 各PCタイムライン
-        Object.entries(groupedByPC).forEach(([pcName, minutes]) => {
-          graphsContainer.appendChild(createTimeline(pcName, minutes));
-        });
-        // 重複している時間（複数PC同時利用）を特定
-        const minuteCounts = new Map();
-        Object.values(groupedByPC).forEach(minutes => {
-          minutes.forEach(minute => {
-            minuteCounts.set(minute, (minuteCounts.get(minute) || 0) + 1);
-          });
-        });
-        const overlapMinutes = new Set();
-        minuteCounts.forEach((count, minute) => {
-          if (count > 1) {
-            overlapMinutes.add(minute);
-          }
-        });
-        // 全PCのアクティビティをマージ
-        const allMinutes = new Set();
-        Object.values(groupedByPC).forEach(minutes => {
-          minutes.forEach(minute => allMinutes.add(minute));
-        });
-        // 総視聴タイムライン
-        graphsContainer.appendChild(createTimeline('総視聴時間', allMinutes, true, overlapMinutes));
-
-        if (activityData.length === 0) {
-          graphsContainer.innerHTML = '<div class="loading">この日のデータはありません</div>';
-        }
-      } catch (error) {
-        console.error('Error fetching data for', dateStr, error);
-        graphsContainer.innerHTML = '<div class="error">データの取得に失敗しました</div>';
-      }
-      return daySet;
-    }
     // 日付を YYYY-MM-DD 形式に
     function formatDate(date) {
       return date.toISOString().split('T')[0];
     }
-    // pcData取得後、選択日とその前日2日分（左から：2日前、1日前、今日）のセットを生成
+    // APIリクエスト用の共通ヘッダー
+    const HEADERS = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    };
+    // １日のセット生成：RPC経由で新SQL関数からデータを取得してタイムライン描画
+    async function renderDaySet(dateStr) {
+      const daySet = document.createElement('div');
+      daySet.className = 'day-set';
+      
+      const dayLabel = document.createElement('div');
+      dayLabel.className = 'day-label';
+      dayLabel.textContent = dateStr;
+      daySet.appendChild(dayLabel);
+      
+      const dayContent = document.createElement('div');
+      dayContent.className = 'day-content';
+      
+      const markersContainer = createTimeMarkers();
+      dayContent.appendChild(markersContainer);
+      
+      const graphsContainer = document.createElement('div');
+      graphsContainer.className = 'graphs-container';
+      graphsContainer.innerHTML = '<div class="loading">データを読み込んでいます...</div>';
+      dayContent.appendChild(graphsContainer);
+      
+      daySet.appendChild(dayContent);
+      
+      try {
+        // 新しいリクエストペイロード形式を利用する（オブジェクト）
+        const requestBody = {
+          target_user_id: USER_ID,
+          target_date: dateStr
+        };
+
+        console.log('Request to get_time_ranges_by_user:', {
+          url: `${SUPABASE_URL}/rest/v1/rpc/get_time_ranges_by_user`,
+          headers: HEADERS,
+          body: requestBody
+        });
+
+        const usageResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_time_ranges_by_user`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (!usageResponse.ok) {
+          throw new Error(`Usage fetch error: ${usageResponse.status} ${usageResponse.statusText}`);
+        }
+
+        const usageData = await usageResponse.json();
+        console.log('Parsed usage data:', usageData);
+
+        graphsContainer.innerHTML = '';
+
+        if (!Array.isArray(usageData) || usageData.length === 0) {
+          graphsContainer.innerHTML = '<div class="loading">この日のデータはありません</div>';
+        } else {
+          // 各PCのタイムライン描画
+          usageData.forEach(row => {
+            let timeRanges = row.time_ranges;
+            if (typeof timeRanges === 'string') {
+              timeRanges = JSON.parse(timeRanges);
+            }
+            timeRanges = mergeTimeRanges(timeRanges);
+            const timeline = createTimelineFromRanges(row.pc_id, timeRanges, row.activity_count);
+            graphsContainer.appendChild(timeline);
+          });
+        }
+
+        console.log('Request to get_total_watch_time:', {
+          url: `${SUPABASE_URL}/rest/v1/rpc/get_total_watch_time`,
+          headers: HEADERS,
+          body: requestBody
+        });
+
+        const totalResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_total_watch_time`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (!totalResponse.ok) {
+          throw new Error(`Total time fetch error: ${totalResponse.status} ${totalResponse.statusText}`);
+        }
+
+        const totalDataArray = await totalResponse.json();
+        const totalData = totalDataArray[0] || {};
+        
+        console.log('Request to analyze_time_difference:', {
+          url: `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+          headers: HEADERS,
+          body: requestBody
+        });
+
+        const diffResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (!diffResponse.ok) {
+          throw new Error(`Time difference fetch error: ${diffResponse.status} ${diffResponse.statusText}`);
+        }
+
+        const diffDataArray = await diffResponse.json();
+        const diffData = diffDataArray[0] || {};
+        
+        // 分析サマリーを追加表示
+        const analysisElement = createWatchingAnalysisElement(totalData, diffData);
+        graphsContainer.appendChild(analysisElement);
+        
+      } catch (error) {
+        console.error('Error details:', error);
+        graphsContainer.innerHTML = '<div class="error">データの取得に失敗しました</div>';
+      }
+      return daySet;
+    }
+    // pcData取得不要になったので、選択日とその前日2日分のセットを生成
     async function fetchAndRenderAllDays() {
       const setsContainer = document.getElementById('setsContainer');
       setsContainer.innerHTML = '<div class="loading">データを読み込んでいます...</div>';
-
-      // ※初期値はローカル日付を使用
+      
       const selectedDateStr = document.getElementById('datePicker').value;
       const selectedDate = new Date(selectedDateStr);
       const dates = [
@@ -374,33 +452,22 @@
         formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 0)),
         formatDate(selectedDate)
       ];
-
+      
       try {
-        const pcResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/user_pcs?select=pc_id,pc_name`,
-          {
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            }
-          }
-        );
-        const pcData = await pcResponse.json();
-
-        const daySetPromises = dates.map(dateStr => renderDaySet(dateStr, pcData));
+        const daySetPromises = dates.map(dateStr => renderDaySet(dateStr));
         const daySets = await Promise.all(daySetPromises);
         setsContainer.innerHTML = '';
         daySets.forEach(daySet => setsContainer.appendChild(daySet));
       } catch (error) {
-        console.error('Error fetching pc data:', error);
+        console.error('Error fetching data:', error);
         setsContainer.innerHTML = '<div class="error">データの取得に失敗しました</div>';
       }
     }
     // 初期値：今日（ローカル）
     const now = new Date();
-    const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9 に変換
+    const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9に変換
     document.getElementById('datePicker').value = formatDate(jstDate);
-
+    
     // イベントリスナー
     document.getElementById('datePicker').addEventListener('change', fetchAndRenderAllDays);
     document.getElementById('prevDate').addEventListener('click', () => {
@@ -417,7 +484,7 @@
       dateInput.value = formatDate(currentDate);
       fetchAndRenderAllDays();
     });
-
+    
     fetchAndRenderAllDays();
   </script>
 </body>

@@ -101,6 +101,16 @@ def get_today_range_utc():
     end_utc = end_jst.astimezone(timezone.utc)
     return start_utc.isoformat(), end_utc.isoformat()
 
+def get_today_range_jst():
+    """
+    当日のJST上の開始時刻と終了時刻（ISO8601形式）を返します。
+    例: ('2024-02-15T00:00:00+09:00', '2024-02-16T00:00:00+09:00')
+    """
+    now_jst = datetime.now(JST)
+    start_jst = now_jst.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_jst = start_jst + timedelta(days=1)
+    return start_jst.isoformat(), end_jst.isoformat()
+
 def log_pc_activity(user_id, pc_identifier, return_result=False):
     """
     PCアクティビティ（利用時間）を記録します。
@@ -408,9 +418,9 @@ def check_usage(user_id, message_mode="normal", return_result=False):
                 message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
         elif message_mode == "hover":
             if total_usage <= allowed_time:
-                message_jp = f"許容内 (+{difference})"
+                message_jp = f"許容内 ({difference})"
             else:
-                message_jp = f"超過 (-{-difference})"
+                message_jp = f"超過 ({-difference})"
         elif message_mode == "giant":
             if total_usage <= allowed_time:
                 message_jp = f"視聴可能：残り {difference} 分。"
@@ -441,53 +451,38 @@ def check_usage(user_id, message_mode="normal", return_result=False):
 
 def is_able_watch(user_id, return_result=False):
     """
-    全PCの利用済み分数とその日の視聴可能時間を比較し、
-    視聴可能なら 'T'、超過していれば 'F'、エラー時は 'E' を返します。
-
-    パラメータ:
-      user_id (str): ユーザID (UUID)
-      return_result (bool): 結果を返す場合は True、標準出力の場合は False
-
-    戻り値:
-      'T' / 'F' / 'E' を返却します。
+    全PCの実際利用分数とその日の設定視聴可能総分数（default_time + watch_time_logの合算）との差分を取得し、
+    視聴可能なら 'T'（実利用が設定内）、超過なら 'F'、エラー発生時は 'E' を返します。
+    
+    新仕様:
+      - Supabase の RPC を利用して、ストアドファンクション analyze_time_difference(target_user_id, target_date) を呼び出します。
+      - ターゲットの日付は JST (YYYY-MM-DD形式) を用います。
+      - analyze_time_difference の戻り値の time_difference が 0 以下なら視聴可能、0 より大きければ超過と判断します。
     """
     try:
-        # ユーザの基本視聴時間 (default_time) を取得
-        url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
-        response = requests.get(url_watch_time, headers=HEADERS)
-        watch_data = response.json() if response.text.strip() else []
-        if not watch_data:
+        # JST の当日の日付 (YYYY-MM-DD形式) を取得
+        now_jst = datetime.now(JST)
+        target_date = now_jst.strftime("%Y-%m-%d")
+
+        # Supabase RPC 呼び出し URL (analyze_time_difference を利用)
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/analyze_time_difference"
+        payload = {
+            "target_user_id": user_id,
+            "target_date": target_date
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        data = response.json() if response.text.strip() else None
+
+        if not data or "time_difference" not in data[0]:
             result = "E"
             return result if return_result else print(result)
-        default_time = watch_data[0]["default_time"]
-
-        # 当日のUTC範囲（JSTの日付に対応）を取得
-        start, end = get_today_range_utc()
-        start_enc = urllib.parse.quote(start, safe="")
-        end_enc = urllib.parse.quote(end, safe="")
-
-        # watch_time_log から追加視聴時間の合計を取得
-        url_watch_log = (
-            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=added_minutes"
-        )
-        response = requests.get(url_watch_log, headers=HEADERS)
-        log_data = response.json() if response.text.strip() else []
-        total_added_minutes = sum(item["added_minutes"] for item in log_data)
-
-        allowed_time = default_time + total_added_minutes
-
-        # pc_activity_2 から当日の全PC利用済み分数（重複しないminutes_time_jstの個数）を取得
-        url_activity = (
-            f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=minutes_time_jst"
-        )
-        response = requests.get(url_activity, headers=HEADERS)
-        activity_data = response.json() if response.text.strip() else []
-        total_usage = len({item["minutes_time_jst"] for item in activity_data})
-
-        # 比較: 利用済み分数が許容時間以内なら 'T'、超過なら 'F'
-        result = "T" if total_usage <= allowed_time else "F"
+        
+        row = data[0]
+        # analyze_time_difference の戻り値: unique_minutes_count, total_watch_time, time_difference
+        time_difference = row["time_difference"]
+        
+        # 使用時間が設定内なら time_difference <= 0  → 'T'、超過なら 'F'
+        result = "T" if time_difference <= 0 else "F"
     except Exception:
         result = "E"
     return result if return_result else print(result)
@@ -579,8 +574,8 @@ def main():
     parser_is_able = subparsers.add_parser(
         "is-able-watch",
         help=(
-            "全PCの利用済み分数とその日の視聴可能時間を比較し、\n"
-            "視聴可能なら 'T'、超過していれば 'F'、エラー時は 'E' を返します。"
+            "全PCの実際利用分数とその日の設定視聴可能総分数（default_time + watch_time_logの合算）との差分を取得し、\n"
+            "視聴可能なら 'T'（実利用が設定内）、超過なら 'F'、エラー発生時は 'E' を返します。"
         )
     )
     parser_is_able.add_argument("user_id", help="ユーザID (UUID)")

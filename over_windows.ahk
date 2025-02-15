@@ -8,20 +8,20 @@ global scResultTimeFile := screenTimeDir "\sc_result_time.txt"
 #Persistent
 #NoEnv
 #SingleInstance Force
-SetTimer, MainLoop, 20000  ; 20ï¿½bï¿½ï¿½ï¿½Æ‚ï¿½ `MainLoop` ï¿½ï¿½ï¿½ï¿½ï¿½s
+SetTimer, MainLoop, 20000  ; 20•b‚²‚Æ‚É `MainLoop` ‚ðŽÀs
 
-Menu, Tray, Tip, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½...
-global watchTimeContent_giant := "ï¿½ï¿½ï¿½æ“¾"
-global watchTimeContent_hover := "ï¿½ï¿½ï¿½æ“¾"
+Menu, Tray, Tip, ‰Šú‰»’†...
+global watchTimeContent_giant := "–¢Žæ“¾"
+global watchTimeContent_hover := "–¢Žæ“¾"
 
-; ï¿½Nï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ `CheckWatchTime` ï¿½ï¿½ï¿½ï¿½ï¿½s
+; ‹N“®Žž‚É `CheckWatchTime` ‚ðŽÀs
 GoSub, CheckWatchTime
 
 return
 
 MainLoop:
     if (IsLidClosed()) {
-        return  ; ï¿½Wï¿½ï¿½ï¿½Â‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½È‚ç‰½ï¿½ï¿½ï¿½ï¿½ï¿½È‚ï¿½
+        return  ; ŠW‚ª•Â‚¶‚Ä‚¢‚é‚È‚ç‰½‚à‚µ‚È‚¢
     }
     GoSub, CheckFile
     GoSub, CheckWatchTime
@@ -36,11 +36,11 @@ CheckFile:
     fileContent := Trim(fileContent)
     if (fileContent = "F") {
         if (A_ComputerName ~= "DESKTOP") {
-            ; ï¿½ï¿½Ê‚Ì•ï¿½ï¿½Æï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ“¾
+            ; ‰æ–Ê‚Ì•‚Æ‚‚³‚ðŽæ“¾
             SysGet, MonitorWorkArea, MonitorWorkArea
-            ; ï¿½ï¿½Ê‚Ì‰Eï¿½ï¿½ï¿½É•\ï¿½ï¿½ï¿½iï¿½Eï¿½[ï¿½ï¿½ï¿½ï¿½20ï¿½sï¿½Nï¿½Zï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½40ï¿½sï¿½Nï¿½Zï¿½ï¿½ï¿½j
+            ; ‰æ–Ê‚Ì‰E‰º‚É•\Ž¦i‰E’[‚©‚ç20ƒsƒNƒZƒ‹A‰º’[‚©‚ç40ƒsƒNƒZƒ‹j
             CoordMode, ToolTip, Screen
-            ToolTip, %watchTimeContent_giant%, % MonitorWorkAreaRight - 300, % MonitorWorkAreaBottom - 40
+            ToolTip, %watchTimeContent_giant%, % MonitorWorkAreaRight - 20, % MonitorWorkAreaBottom - 40
         } else {
             if WinExist("WatchWindow") {
                 Gui, WatchWindow:Destroy
@@ -56,7 +56,7 @@ CheckFile:
         if WinExist("WatchWindow") {
             Gui, WatchWindow:Destroy
         }
-        ToolTip  ; ToolTipï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+        ToolTip  ; ToolTip‚ðÁ‹Ž
     }
 return
 
@@ -70,24 +70,24 @@ CheckWatchTime:
     FileRead, watchTimeContent_hover, %scResultTimeFile%_hover
     watchTimeContent_hover := Trim(watchTimeContent_hover)
 
-    Menu, Tray, Tip, % "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: " watchTimeContent_hover
+    Menu, Tray, Tip, % "Ž‹’®ŽžŠÔ: " watchTimeContent_hover
 return
 
 IsLidClosed() {
-    ; PowerShell ï¿½ï¿½ï¿½ï¿½ï¿½sï¿½ï¿½ï¿½ÄŠWï¿½Ìï¿½Ô‚ï¿½ï¿½æ“¾
+    ; PowerShell ‚ðŽÀs‚µ‚ÄŠW‚Ìó‘Ô‚ðŽæ“¾
     RunWait, cmd /c PowerShell -Command "$status = (Get-WmiObject -Namespace root\WMI -Class WmiMonitorBasicDisplayParams).Active; if ($status -eq $true) { 'Lid Open' } else { 'Lid Closed' }" > %screenTimeDir%\lid_status.txt, , Hide
     FileRead, lidStatus, %screenTimeDir%\lid_status.txt
     lidStatus := Trim(lidStatus)
     
-    ; ï¿½Ü‚ï¿½ï¿½Í•ï¿½ï¿½@3: StringCompareï¿½gï¿½p
+    ; ‚Ü‚½‚Í•û–@3: StringCompareŽg—p
     if (lidStatus ~= "Lid Open") {
-        ;msgbox, ï¿½ï¿½ï¿½bï¿½hï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½
-        return False  ; ï¿½ï¿½ï¿½bï¿½hï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½
+        ;msgbox, ƒŠƒbƒh‚ªŠJ‚¢‚Ä‚¢‚Ü‚·
+        return False  ; ƒŠƒbƒh‚ªŠJ‚¢‚Ä‚¢‚é
     }
     if (lidStatus ~= "Lid Closed") {
-        ;msgbox, ï¿½ï¿½ï¿½bï¿½hï¿½ï¿½ï¿½Â‚ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½
-       return True  ; ï¿½ï¿½ï¿½bï¿½hï¿½ï¿½ï¿½Â‚ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½
+        ;msgbox, ƒŠƒbƒh‚ª•Â‚¶‚Ä‚¢‚Ü‚·
+       return True  ; ƒŠƒbƒh‚ª•Â‚¶‚Ä‚¢‚é
     }
     ;msgbox, %lidStatus%
-    return False  ; ï¿½ï¿½ï¿½bï¿½hï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½
+    return False  ; ƒŠƒbƒh‚ªŠJ‚¢‚Ä‚¢‚é
 }

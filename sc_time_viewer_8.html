@@ -293,7 +293,15 @@
       container.appendChild(p1);
       
       const p2 = document.createElement('p');
-      p2.textContent = `視聴時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
+      let diffMessage = "";
+      if (diffData.time_difference > 0) {
+        diffMessage = `${diffData.time_difference}分（超過してる）`;
+      } else if (diffData.time_difference < 0) {
+        diffMessage = `${diffData.time_difference}分（許容）`;
+      } else {
+        diffMessage = `${diffData.time_difference}分`;
+      }
+      p2.textContent = `視聴時間: ${diffData.unique_minutes_count}分, 差分: ${diffMessage}`;
       container.appendChild(p2);
       
       return container;
@@ -452,7 +460,17 @@
         
         // 分析サマリーを day-label の下に表示
         totalViewLabel.textContent = `許可: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, ベース: ${totalData.default_time}分)`;
-        totalExtensionLabel.textContent = `利用時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
+
+        // 差分が正の場合：「超過してる」、負の場合：「許容」、0の場合はそのまま表示
+        let diffLabel = "";
+        if (diffData.time_difference > 0) {
+          diffLabel = `${diffData.time_difference}分（超過してる）`;
+        } else if (diffData.time_difference < 0) {
+          diffLabel = `${diffData.time_difference}分（許容）`;
+        } else {
+          diffLabel = `${diffData.time_difference}分`;
+        }
+        totalExtensionLabel.textContent = `利用時間: ${diffData.unique_minutes_count}分, 差分: ${diffLabel}`;
         
       } catch (error) {
         console.error('Error details:', error);

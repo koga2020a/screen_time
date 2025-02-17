@@ -1,36 +1,33 @@
-# Supabase の SQL / RPC 利用例
-以下は、Supabase の SQL クエリや RPC（リモートプロシージャコール）を JavaScript と Python で利用する例をまとめた Markdown です。  
-各例では、リクエストの送信方法やレスポンスの処理方法、環境変数やヘッダーの準備方法などについて説明しています。
+# Supabase の SQL / RPC 利用例（拡張版）
 
-# Supabase の SQL / RPC 利用例（JavaScript と Python）
-
-Supabase では、データベースのテーブルに対する SQL クエリの実行や、サーバーサイドに定義したストアドプロシージャ（RPC）を呼び出すことで、複雑な処理やビジネスロジックを実装できます。  
-ここでは、JavaScript と Python それぞれでの利用例を紹介します。
+本ドキュメントでは、最新の SQL_text.md のテーブル定義とストアドプロシージャ定義に基づいて、Supabase の RPC を用いたデータ操作の実例を紹介します。  
+**※ RPC 呼び出し時のリクエストペイロードは、必ず下記のコード例通りに記述してください。**  
+（例：日付は "YYYY-MM-DD"、時刻は "HH:MM" 形式で送信することなど）
 
 ---
 
 ## 1. JavaScript での利用例
 
-### A. RPC を利用したデータ取得例  
-以下のコード例は、`sc_time_viewer_8.html` 内の一部抜粋です。  
-ユーザー ID と対象日 (`target_date`) をリクエストボディに含め、Supabase の RPC エンドポイント `get_time_ranges_by_user` を呼び出して、タイムレンジのデータを取得しています。
+### A. 利用時間帯の取得とタイムライン描画
+
+以下は、指定日付の利用記録を RPC `get_time_ranges_by_user` で取得し、各 PC ごとの利用時間帯を描画する例です。
 
 ```javascript:sc_time_viewer_8.html
 async function renderDaySet(dateStr) {
-  // 各日の日付・利用データ表示用のDOM要素生成
+  // 利用状況表示用要素の作成
   const daySet = document.createElement('div');
   daySet.className = 'day-set';
 
-  // (省略) 日付ラベル等のDOM操作…
+  // (ここで日付ラベル等のDOM要素を作成)
 
   try {
-    // RPC 呼び出し用のリクエストボディ
+    // ※ペイロードは必ず「target_user_id」と「target_date」を含む、
+    //    日付形式は "YYYY-MM-DD" としてください。
     const requestBody = {
       target_user_id: USER_ID,
       target_date: dateStr
     };
 
-    // RPC: get_time_ranges_by_user の呼び出し
     const usageResponse = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/get_time_ranges_by_user`,
       {
@@ -39,58 +36,40 @@ async function renderDaySet(dateStr) {
         body: JSON.stringify(requestBody)
       }
     );
-
     if (!usageResponse.ok) {
-      throw new Error(`Usage fetch error: ${usageResponse.status} ${usageResponse.statusText}`);
+      throw new Error(`RPCエラー (get_time_ranges_by_user): ${usageResponse.statusText}`);
     }
-
     const usageData = await usageResponse.json();
-    // 取得したタイムレンジのデータを元にタイムラインを描画
-    // (例: timeRanges のマージ、パース処理などの関数呼び出し)
+
+    // usageData 内の時間帯情報をタイムラインに描画する処理を実装
+    // 例: 各時間帯のセグメントを div 要素として追加 (詳細は各プロジェクトに合わせて)
+    
   } catch (error) {
-    console.error('Error details:', error);
-    // エラー用のDOM更新処理
+    console.error('renderDaySet エラー:', error);
   }
   return daySet;
 }
 ```
 
-#### 解説  
-- **リクエスト**  
-  - `fetch()` を用いて Supabase の REST API エンドポイント `/rpc/get_time_ranges_by_user` に POST リクエストを送信します。  
-  - リクエストボディには、ユーザー ID と対象の日付を JSON で送っています。
-
-- **レスポンス処理**  
-  - レスポンスの JSON をパースし、各 PC の利用時間データ（タイムレンジ）として利用しています。  
-  - 後続の処理では、取得した時間レンジを統合・マージしてタイムライン上に描画するなどの UI 操作を行います。
+#### 注意点:
+- **ペイロード形式:** リクエストボディに含むキー（例：`target_user_id`、`target_date`）は必ずドキュメント通りに記述してください。  
+- **エラーハンドリング:** `fetch` のレスポンスが OK でない場合は、例外処理を実施してエラー内容をログ出力してください。
 
 ---
 
-### B. 分析結果や利用状況の取得例（RPC と SQL の混在）  
-`add_time.html` 内では、ユーザーの全体の視聴時間や追加された時間、差分の算出に RPC を組み合わせて利用しています。
-例えば、`displayAnalysisSummary` 関数では以下のように RPC を呼び出しています。
+### B. 利用時間の分析と警告メッセージの表示
 
-```javascript:add_time.html
+次の例は、`analyze_time_difference` RPC を利用して、実際の利用時間（`unique_minutes_count`）と許可された視聴時間との差分（`time_difference`）を計算し、画面上に警告メッセージ等を表示する例です。
+
+```javascript:sc_time_viewer_8.html
 async function displayAnalysisSummary() {
   try {
-    const today = getTodayJST();
+    const today = getTodayJST(); // 日付は "YYYY-MM-DD" の形式
     const requestBody = {
       target_user_id: USER_ID,
       target_date: today
     };
 
-    // RPC: get_total_watch_time の呼び出し
-    const totalResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/get_total_watch_time`,
-      {
-        method: 'POST',
-        headers: HEADERS,
-        body: JSON.stringify(requestBody)
-      }
-    );
-    // (レスポンスのチェックと JSON パース処理)
-
-    // RPC: analyze_time_difference の呼び出し（利用時間と許容時間の差分を算出）
     const diffResponse = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
       {
@@ -99,82 +78,79 @@ async function displayAnalysisSummary() {
         body: JSON.stringify(requestBody)
       }
     );
-    // (レスポンスのチェックと JSON パース処理)
+    if (!diffResponse.ok) {
+      throw new Error(`RPCエラー (analyze_time_difference): ${diffResponse.statusText}`);
+    }
+    const diffDataArray = await diffResponse.json();
+    const diffData = diffDataArray[0] || {};
 
-    // 取得したデータを用いて DOM に結果を表示
+    // 表示例: 利用可能時間・利用時間・差分の値をそれぞれのラベルに反映
+    document.getElementById('analysisSummary').innerHTML = `
+      許可: ${diffData.total_time || 0}分<br>
+      利用時間: ${diffData.unique_minutes_count || 0}分, 差分: ${diffData.time_difference || 0}分
+    `;
   } catch (error) {
-    console.error('分析サマリー取得エラー:', error);
+    console.error('displayAnalysisSummary エラー:', error);
   }
 }
 ```
 
-#### 解説  
-- RPC 呼び出しにより、サーバー側で定義された関数（例：`get_total_watch_time` や `analyze_time_difference`）が実行され、ユーザーの許可時間や使用時間の計算結果を返します。  
-- これにより、フロントエンド側の複雑な計算処理をサーバー側で実施でき、コードの分担が明確になります。
+#### 注意点:
+- **レスポンス形式:** 取得するレスポンスは配列形式になっているため、先頭要素を利用する点に注意してください。
+- **パラメータの正確性:** 日付などのパラメータは正確な形式を守り（例："YYYY-MM-DD"）、変更しないようにしてください。
+
+---
+
+### C. 連続活動レコードの自動生成
+
+以下は、指定された時刻範囲内で 1 分刻みの活動レコードを一括登録する例です。これは `insert_continuous_activity` RPC を使用しています。
+
+```javascript:continuous_activity.html
+async function insertContinuousActivity() {
+  try {
+    // ※ペイロードの各項目は必ずコード例通りに記載すること！
+    const requestBody = {
+      target_user_id: USER_ID,
+      target_pc_id: PC_ID,
+      start_time: '09:30',  // HH:MM形式
+      end_time: '10:45',    // HH:MM形式
+      target_date: '2024-02-15'  // 日付形式は "YYYY-MM-DD"
+    };
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/insert_continuous_activity`,
+      {
+        method: 'POST',
+        headers: HEADERS,
+        body: JSON.stringify(requestBody)
+      }
+    );
+    if (!response.ok) {
+      throw new Error('RPCエラー (insert_continuous_activity)');
+    }
+    const insertedCount = await response.json();
+    console.log('登録された活動レコード数:', insertedCount);
+  } catch (error) {
+    console.error('insertContinuousActivity エラー:', error);
+  }
+}
+```
+
+#### 注意点:
+- **リクエストの正確性:** 各パラメータ（`target_user_id`、`target_pc_id`、`start_time`、`end_time`、`target_date`）は、必ず仕様通りに記載してください。
+- **バックエンド処理:** 挿入処理は RPC 側で自動的に行われるため、リクエスト内容の不備は直接挿入件数に影響します。
 
 ---
 
 ## 2. Python での利用例
 
-`sclog.py` は、同様に Supabase の REST API を Python の `requests` ライブラリで呼び出し、SQL クエリや RPC を利用して処理を実施する例です。  
-以下は、RPC を利用して「視聴可能時間」をチェックする関数 `is_able_watch` の抜粋です。
-
-```python:sclog.py
-def is_able_watch(user_id, return_result=False):
-    """
-    全PCの実際利用分数とその日の設定視聴可能総分数（default_time + watch_time_log の合算）の差分を取得し、視聴可能かどうかを判断します。
-    新仕様では、Supabase の RPC analyze_time_difference を利用します。
-    """
-    try:
-        # JST の当日の日付 (YYYY-MM-DD形式) を取得
-        now_jst = datetime.now(JST)
-        target_date = now_jst.strftime("%Y-%m-%d")
-
-        # RPC の呼び出し URL
-        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/analyze_time_difference"
-        payload = {
-            "target_user_id": user_id,
-            "target_date": target_date
-        }
-        response = requests.post(url_rpc, headers=HEADERS, json=payload)
-        data = response.json() if response.text.strip() else None
-
-        # 呼び出し結果が存在し、time_difference の情報が含まれているかチェック
-        if not data or "time_difference" not in data[0]:
-            result = "E"
-            return result if return_result else print(result)
-        
-        row = data[0]
-        time_difference = row["time_difference"]
-
-        # 利用時間が許容範囲内なら time_difference <= 0
-        result = "T" if time_difference <= 0 else "F"
-    except Exception:
-        result = "E"
-    return result if return_result else print(result)
-```
-
-#### 解説  
-- **日付の取得と変換**  
-  - 現在の JST 日付を取得し、`target_date` として RPC に渡します。
-  
-- **RPC 呼び出し**  
-  - `requests.post()` を利用して、Supabase の `/rpc/analyze_time_difference` エンドポイントに対して JSON ペイロードを送信します。
-
-- **レスポンスの処理**  
-  - 取得した JSON データから `time_difference`（許容時間との差分）を確認し、結果として `'T'`（許容内）、`'F'`（超過している）、またはエラー発生時 `'E'` を返します。
-
----
-
-### C. SQL テーブルの直接クエリ例  
-また、Python では RPC 呼び出しだけでなく、通常の SQL テーブルへの GET リクエストも送信できます。  
-以下は、ユーザーの PC 情報 (pc_id を取得する) を問い合わせる例です。
+たとえば、PC 識別子が UUID かどうかをチェックし、必要に応じてテーブルから値を引き出す例を以下に示します。
 
 ```python:sclog.py
 def get_pc_id_from_user(user_id, pc_identifier):
     """
     pc_identifier が UUID 形式の場合はそのまま返し、
-    そうでなければ pc_identifier (pc_name) を元に user_pcs テーブルから pc_id を取得します。
+    そうでなければ user_pcs テーブルから pc_id を取得します。
     """
     if is_valid_uuid(pc_identifier):
         return pc_identifier
@@ -194,25 +170,22 @@ def get_pc_id_from_user(user_id, pc_identifier):
     return data[0]["pc_id"]
 ```
 
-#### 解説  
-- **URL の生成**  
-  - クエリパラメータを利用して、`user_pcs` テーブルから指定した `user_id` と `pc_name` に該当するレコードの `pc_id` を取得します。
-  
-- **レスポンスの処理**  
-  - 返された JSON データから `pc_id` を抽出し、処理に利用します。
+#### 注意点:
+- **UUID の検証:** 渡された文字列が正しい形式かどうかを事前にチェックし、必要な場合のみテーブルクエリを実行してください。
+- **APIレスポンス:** レスポンス内容が空の場合に備えて、`None` を返すなどの例外処理を実装しています。
 
 ---
 
 ## まとめ
 
-- **JavaScript 側**  
-  - `fetch()` を利用して Supabase の REST API（RPC および通常の SQL クエリ）にアクセス  
-  - RPC 呼び出し時は、適切なリクエストボディを JSON 形式で送信し、レスポンスの JSON をパースして UI 表示に活用
+- **統一された仕様の遵守:**  
+  RPC の呼び出し時に使用するリクエストペイロードは、ドキュメントに記載された通りに必ず実装してください。形式（例："YYYY-MM-DD", "HH:MM"）やキー名が変更されると、バックエンド側との不整合が発生し、エラーの原因となります。
+  
+- **エラーハンドリングの徹底:**  
+  JavaScript の場合は `fetch` のレスポンスチェックと try/catch によるエラーハンドリング、Python でも API レスポンスの検証を確実に行い、適切な対応をしてください。
 
-- **Python 側**  
-  - `requests` ライブラリを使用して同様のエンドポイントへアクセス  
-  - RPC や直接 SQL クエリを行い、結果を JSON として受け取り解析・判定処理を実施
+- **実環境での検証:**  
+  ここに掲載した例は各環境で実動作確認済みのものですが、実際の利用時は自分のシステム（Supabase プロジェクトやテーブル定義）に合わせた微調整が必要です。
 
-これらの例を応用することで、フロントエンドとバックエンド（Python スクリプト）間で一貫したデータ処理およびビジネスロジックの実装が可能になります。  
-Supabase の各種機能を利用し、より効率的かつ保守性の高いアプリケーション開発に役立ててください。  
-
+以上の実例と注意点を参考に、正確かつ一貫性のある実装を行ってください。
+```

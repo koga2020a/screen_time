@@ -31,7 +31,6 @@ CheckFile:
     Run, python %screenTimeDir%\sclog.py log-pc-activity %user_id% %pc_id%, , Hide
     Run, python %screenTimeDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile%, , Hide
     Sleep, 3000
-
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
     if (fileContent = "F") {

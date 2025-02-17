@@ -40,10 +40,13 @@ CREATE TABLE pc_activity_2 (
     pc_id UUID NOT NULL,
     user_id UUID NOT NULL,
     minutes_time_jst INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST'),
-    CONSTRAINT pc_activity_2_unique_combination UNIQUE (pc_id, user_id, minutes_time_jst)
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    created_at_jst TIMESTAMPTZ DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST'),
+    created_date_jst DATE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::DATE,
+    CONSTRAINT pc_activity_2_unique_combination UNIQUE (created_date_jst, pc_id, user_id, minutes_time_jst)
 );
+
+
 
 -- users_watch_timeテーブルの作成
 CREATE TABLE users_watch_time (

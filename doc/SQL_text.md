@@ -46,6 +46,52 @@ CREATE TABLE pc_activity_2 (
     CONSTRAINT pc_activity_2_unique_combination UNIQUE (created_date_jst, pc_id, user_id, minutes_time_jst)
 );
 
+-- base_date の取得
+-- (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date で、現在の JST 日付を取得しています。
+-- 
+-- 時刻計算
+-- base_date::timestamp + (m * interval '1 minute') で、base_date の午前0時から p_minutes の分だけ進めた JST の時刻を計算します。
+-- 
+-- created_at と created_at_jst の設定
+-- 
+-- created_at_jst にはその計算結果（timestamp 型）をそのままセットします。
+-- created_at には、JST として解釈した値を AT TIME ZONE 'JST' で UTC に変換した値をセットしています。
+-- （いずれも同じ瞬間を表しますが、保存形式・表示方法が異なります。）
+-- ON CONFLICT DO NOTHING
+-- で、unique 制約に抵触する場合はスルーします。
+CREATE OR REPLACE FUNCTION append_pc_activity(
+  p_pc_id uuid,
+  p_user_id uuid,
+  p_minutes int[]
+) RETURNS SETOF pc_activity_2 AS $$
+DECLARE
+  base_date date := (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date;
+  ts_jst timestamp;
+BEGIN
+  RETURN QUERY
+  INSERT INTO pc_activity_2(
+    pc_id,
+    user_id,
+    minutes_time_jst,
+    created_at,
+    created_at_jst,
+    created_date_jst
+  )
+  SELECT 
+         p_pc_id,
+         p_user_id,
+         m,
+         -- created_at: JST の時刻を UTC に変換（タイムゾーン付き）
+         ( (base_date::timestamp + (m * interval '1 minute')) AT TIME ZONE 'JST' ),
+         -- created_at_jst: JST のローカルな時刻
+         (base_date::timestamp + (m * interval '1 minute')),
+         base_date
+  FROM unnest(p_minutes) as m
+  ON CONFLICT DO NOTHING
+  RETURNING *;
+END;
+$$ LANGUAGE plpgsql;
+
 
 
 -- users_watch_timeテーブルの作成

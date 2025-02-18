@@ -3,8 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <title>新規ユーザー登録</title>
-  <!-- supabase-js をCDNから読み込み -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- supabase-js のUMD版を読み込み -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+  <script>
+    // DOMContentLoadedイベントで初期化処理を行う
+    document.addEventListener('DOMContentLoaded', () => {
+      // Supabase初期化
+      const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      // フォームの送信処理
+      const form = document.getElementById('signup-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const passwordConfirm = document.getElementById('passwordConfirm').value;
+        
+        if (password !== passwordConfirm) {
+          alert('パスワードが一致しません。');
+          return;
+        }
+        
+        try {
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: `${location.origin}/auth_test_dashboard.html` }
+          });
+          
+          if (error) {
+            alert('エラー: ' + error.message);
+          } else {
+            alert('登録完了！認証メールを確認してください。');
+          }
+        } catch (err) {
+          alert('予期せぬエラーが発生しました: ' + err.message);
+        }
+      });
+    });
+  </script>
 </head>
 <body>
   <h1>新規ユーザー登録</h1>
@@ -20,37 +59,5 @@
     
     <button type="submit">登録する</button>
   </form>
-  
-  <script>
-    // 試験用Supabase情報
-    const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    
-    const form = document.getElementById('signup-form');
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const passwordConfirm = document.getElementById('passwordConfirm').value;
-      
-      if (password !== passwordConfirm) {
-        alert('パスワードが一致しません。');
-        return;
-      }
-      
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${location.origin}/auth_test_dashboard.html` }
-      });
-      
-      if (error) {
-        alert('エラー: ' + error.message);
-      } else {
-        alert('登録完了！認証メールを確認してください。');
-      }
-    });
-  </script>
 </body>
 </html>

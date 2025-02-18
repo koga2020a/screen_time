@@ -4,48 +4,124 @@
   <meta charset="UTF-8">
   <title>ダッシュボード</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .error { color: red; }
+    .success { color: green; }
+    .info { margin: 10px 0; }
+  </style>
 </head>
 <body>
   <h1>ダッシュボード</h1>
-  <div id="user-info"></div>
-  <div id="rpc-result"></div>
+  <div id="status-message"></div>
+  <div id="user-info" class="info"></div>
+  <div id="rpc-result" class="info"></div>
+  <div id="record-info" class="info"></div>
   <button id="logout-btn">ログアウト</button>
   
   <script>
-    const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    
-    // 現在のセッションを取得
-    async function init() {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session) {
-        alert('ログインされていません。');
-        window.location.href = 'login.html';
-        return;
-      }
-      const user = session.user;
-      document.getElementById('user-info').innerText = `ユーザーID: ${user.id}`;
+    document.addEventListener('DOMContentLoaded', async () => {
+      const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
       
-      // RPC関数 "auth_test_register_user_record" を呼び出して、ユーザーのuuidと現在日時をテーブルに登録
-      const { data: rpcData, error: rpcError } = await supabase.rpc('auth_test_register_user_record', { _user_id: user.id });
-      if (rpcError) {
-        document.getElementById('rpc-result').innerText = 'RPCエラー: ' + rpcError.message;
-      } else {
-        document.getElementById('rpc-result').innerText = 'ユーザーレコードの登録に成功しました。';
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true
+        }
+      });
+
+      const statusMessage = document.getElementById('status-message');
+      const userInfo = document.getElementById('user-info');
+      const rpcResult = document.getElementById('rpc-result');
+      const recordInfo = document.getElementById('record-info');
+
+      async function initializeDashboard() {
+        try {
+          const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+          
+          if (sessionError) throw sessionError;
+          if (!session) {
+            throw new Error('ログインセッションが見つかりません');
+          }
+
+          const user = session.user;
+          userInfo.innerHTML = `
+            <strong>ユーザー情報:</strong><br>
+            ID: ${user.id}<br>
+            メール: ${user.email}<br>
+            最終ログイン: ${new Date(user.last_sign_in_at).toLocaleString()}
+          `;
+
+          // RPCを呼び出してユーザーレコードを登録
+          statusMessage.textContent = 'ユーザーレコードを登録中...';
+          const { data: rpcData, error: rpcError } = await supabaseClient.rpc(
+            'auth_test_register_user_record',
+            { _user_id: user.id }
+          );
+
+          if (rpcError) throw rpcError;
+
+          rpcResult.className = 'success';
+          rpcResult.textContent = 'ユーザーレコードの登録に成功しました。';
+
+          // 登録されたレコードを確認
+          const { data: records, error: fetchError } = await supabaseClient
+            .from('auth_test_user_records')  // テーブル名を修正
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+          if (fetchError) throw fetchError;
+
+          if (records) {
+            recordInfo.className = 'success';
+            recordInfo.innerHTML = `
+              <strong>登録されたレコード:</strong><br>
+              ID: ${records.id}<br>
+              最終ログイン: ${new Date(records.last_login).toLocaleString()}
+            `;
+          } else {
+            recordInfo.className = 'error';
+            recordInfo.textContent = 'レコードが見つかりませんでした。';
+          }
+
+          statusMessage.textContent = '';  // ステータスメッセージをクリア
+
+        } catch (err) {
+          console.error('初期化エラー:', err);
+          statusMessage.className = 'error';
+          statusMessage.textContent = `エラーが発生しました: ${err.message}`;
+          
+          if (err.message.includes('ログイン') || !await supabaseClient.auth.getSession()) {
+            setTimeout(() => {
+              window.location.href = 'auth_test_login.html';
+            }, 3000);
+          }
+        }
       }
-    }
-    
-    init();
-    
-    // ログアウト処理
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        alert('ログアウトエラー: ' + error.message);
-      } else {
-        window.location.href = 'auth_test_login.html';
-      }
+
+      await initializeDashboard();
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        try {
+          statusMessage.textContent = 'ログアウト中...';
+          const { error } = await supabaseClient.auth.signOut();
+          
+          if (error) throw error;
+
+          statusMessage.className = 'success';
+          statusMessage.textContent = 'ログアウトしました。ログインページへ移動します...';
+          setTimeout(() => {
+            window.location.href = 'auth_test_login.html';
+          }, 1500);
+          
+        } catch (err) {
+          console.error('ログアウトエラー:', err);
+          statusMessage.className = 'error';
+          statusMessage.textContent = `ログアウトエラー: ${err.message}`;
+        }
+      });
     });
   </script>
 </body>

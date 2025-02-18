@@ -7,6 +7,7 @@
 </head>
 <body>
   <h1>ログイン</h1>
+  <div id="status-message" style="color: red;"></div>
   <form id="login-form">
     <label for="loginEmail">メールアドレス:</label>
     <input type="email" id="loginEmail" required><br><br>
@@ -21,42 +22,125 @@
   <button id="reset-request-btn">パスワードリセット申請</button>
   
   <script>
-    const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    
-    const loginForm = document.getElementById('login-form');
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
+    document.addEventListener('DOMContentLoaded', async () => {
+      const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
       
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      
-      if (error) {
-        alert('ログインエラー: ' + error.message);
-      } else {
-        alert('ログイン成功！');
-        // ログイン後、ダッシュボードへ遷移
-        window.location.href = 'dashboard.html';
-      }
-    });
-    
-    // パスワードリセット申請ボタンの処理
-    document.getElementById('reset-request-btn').addEventListener('click', async () => {
-      const email = document.getElementById('loginEmail').value;
-      if (!email) {
-        alert('パスワードリセット申請には、メールアドレスの入力が必要です。');
-        return;
-      }
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${location.origin}/auth_test_passwordReset.html`
+      // Supabaseクライアントの初期化
+      const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true
+        }
       });
-      if (error) {
-        alert('リセット申請エラー: ' + error.message);
-      } else {
-        alert('パスワードリセットメールを送信しました。');
-      }
+
+      const statusMessage = document.getElementById('status-message');
+
+      // セッションの確認と設定
+      const checkAndSetSession = async () => {
+        try {
+          // 現在のURLからハッシュパラメータを取得
+          const hashParams = new URLSearchParams(window.location.hash.substr(1));
+          
+          // セッションの取得を試みる
+          const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+          
+          if (session) {
+            // 既存のセッションがある場合
+            statusMessage.style.color = 'green';
+            statusMessage.textContent = 'ログインしています。ダッシュボードへ移動します...';
+            setTimeout(() => {
+              window.location.href = 'auth_test_dashboard.html';
+            }, 2000);
+            return;
+          }
+
+          // URLにアクセストークンがある場合（メール認証後のリダイレクト）
+          if (hashParams.has('access_token')) {
+            statusMessage.textContent = 'メール認証を処理中...';
+            
+            const { error: authError } = await supabaseClient.auth.getUser(
+              hashParams.get('access_token')
+            );
+
+            if (authError) {
+              throw authError;
+            }
+
+            statusMessage.style.color = 'green';
+            statusMessage.textContent = 'メール認証が完了しました。ダッシュボードへ移動します...';
+            setTimeout(() => {
+              window.location.href = 'auth_test_dashboard.html';
+            }, 2000);
+          }
+        } catch (err) {
+          console.error('認証エラー:', err);
+          statusMessage.textContent = `認証エラー: ${err.message}`;
+        }
+      };
+
+      // 初期セッションチェックを実行
+      await checkAndSetSession();
+
+      // ログインフォームの処理
+      const loginForm = document.getElementById('login-form');
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        statusMessage.textContent = 'ログイン処理中...';
+        
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        
+        try {
+          const { data, error } = await supabaseClient.auth.signInWithPassword({ 
+            email, 
+            password 
+          });
+          
+          if (error) {
+            throw error;
+          }
+
+          statusMessage.style.color = 'green';
+          statusMessage.textContent = 'ログイン成功！ダッシュボードへ移動します...';
+          setTimeout(() => {
+            window.location.href = 'dashboard.html';
+          }, 1000);
+        } catch (err) {
+          console.error('ログインエラー:', err);
+          statusMessage.textContent = err.message === 'Invalid login credentials'
+            ? 'メールアドレスまたはパスワードが正しくありません。'
+            : `ログインエラー: ${err.message}`;
+        }
+      });
+      
+      // パスワードリセット申請の処理
+      document.getElementById('reset-request-btn').addEventListener('click', async () => {
+        const email = document.getElementById('loginEmail').value.trim();
+        if (!email) {
+          statusMessage.textContent = 'パスワードリセット申請には、メールアドレスの入力が必要です。';
+          return;
+        }
+        
+        statusMessage.textContent = 'パスワードリセットメール送信中...';
+        
+        try {
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: `${location.origin}/auth_test_passwordReset.html`
+          });
+          
+          if (error) {
+            throw error;
+          }
+
+          statusMessage.style.color = 'green';
+          statusMessage.textContent = 'パスワードリセットメールを送信しました。メールを確認してください。';
+        } catch (err) {
+          console.error('パスワードリセットエラー:', err);
+          statusMessage.textContent = `パスワードリセットエラー: ${err.message}`;
+        }
+      });
     });
   </script>
 </body>

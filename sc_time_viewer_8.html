@@ -183,11 +183,22 @@
   </div>
 
   <script>
-    // URLのGETパラメータで"user_id"が指定されていればそれを使用、なければデフォルトのUSER_IDを利用
+    // URLのGETパラメータで各種設定を取得
     const urlParams = new URLSearchParams(window.location.search);
     const SUPABASE_PROJECT_ID = urlParams.get('project_id') || 'xalrqqutkxzwzvahqpjg';
     const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
-    const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+
+    // 従来のSUPABASE_KEYは使用せず、anon keyを利用する
+    const SUPABASE_ANON_KEY = urlParams.get('supabase_anon_key') ||
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTk4OTEyMDAsImV4cCI6MjAxNTQ2NzIwMH0.KpFrYqFNEjOmDJvAEvDJXWGoXVYaPz2DTq1WwKFUaEM";
+
+    // APIリクエスト用の共通ヘッダーも変更
+    const HEADERS = {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json'
+    };
+
     const USER_ID = urlParams.get('user_id') || 'b4e45080-6c59-43e0-a644-ecbf07eace02';
 
     // ヘルパー関数：分を HH:MM 形式に
@@ -342,12 +353,6 @@
     function formatDate(date) {
       return date.toISOString().split('T')[0];
     }
-    // APIリクエスト用の共通ヘッダー
-    const HEADERS = {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json'
-    };
     // １日のセット生成：RPC経由で新SQL関数からデータを取得してタイムライン描画
     async function renderDaySet(dateStr) {
       const daySet = document.createElement('div');

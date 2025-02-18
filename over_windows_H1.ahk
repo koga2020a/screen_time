@@ -96,7 +96,7 @@ IsLidClosed() {
 
 AttemptExit:
     Gui, Destroy  ; 既存のGUIを破棄
-    Gui, Add, Text,, 終了するには「del」と入力してください:
+    Gui, Add, Text,, 終了するには入力してください:
     Gui, Add, Edit, vExitInput Password  ; 入力をマスク（パスワード風）
     Gui, Add, Button, Default gCheckExit, 確認
     Gui, Show,, 終了確認

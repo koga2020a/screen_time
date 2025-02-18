@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>サイトタイトル - SPA</title>
+  <style>
+    /* ここにヘッダー、メニュー、メインコンテンツの共通スタイルを記述 */
+    body { margin: 0; font-family: sans-serif; }
+    #mainContent { padding: 20px; }
+  </style>
+</head>
+<body>
+  <!-- 共通ヘッダーを配置する部分 -->
+  <div id="commonHeader"></div>
+  <!-- ルーティングで切り替えるメインコンテンツ -->
+  <div id="mainContent"></div>
+  
+  <script>
+    // ヘッダーの読み込み
+    fetch('common-header.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('commonHeader').innerHTML = html;
+        // ヘッダー内のリンクにクリックイベントを設定（SPA風に遷移）
+        document.querySelectorAll('#commonHeader nav a').forEach(link => {
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const url = this.getAttribute('href');
+            loadPage(url);
+            history.pushState(null, '', url);
+          });
+        });
+      })
+      .catch(e => console.error('ヘッダー読み込みエラー:', e));
+
+    // ページコンテンツの読み込み関数
+    function loadPage(url) {
+      fetch(url)
+        .then(response => response.text())
+        .then(html => {
+          // 必要に応じて、各ページの特定のコンテンツ部分（たとえば id="mainContent" を含める）を抽出して表示させます。
+          // 単純な例ではbody全体を表示しています。
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          // ここでは、各ページ内に id="mainContent" があればその部分だけ切り出す例です
+          const content = doc.querySelector('#mainContent') || doc.body;
+          document.getElementById('mainContent').innerHTML = content.innerHTML;
+        })
+        .catch(e => console.error('ページ読み込みエラー:', e));
+    }
+
+    // ブラウザの戻る/進むによる遷移を反映するための設定
+    window.addEventListener('popstate', () => {
+      loadPage(location.pathname);
+    });
+
+    // 初回読み込み時、デフォルトのページを表示（例として "sc_time_viewer_8.html" を指定）
+    loadPage('sc_time_viewer_8.html');
+  </script>
+</body>
+</html> 

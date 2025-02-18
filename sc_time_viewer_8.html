@@ -154,6 +154,17 @@
   </style>
 </head>
 <body>
+  <!-- 共通ヘッダーの読み込み -->
+  <div id="commonHeader"></div>
+  <script>
+    fetch('common-header.html')
+      .then(response => response.text())
+      .then(data => {
+        document.getElementById('commonHeader').innerHTML = data;
+      })
+      .catch(error => console.error('ヘッダー読み込みエラー:', error));
+  </script>
+
   <div class="card">
     <!-- 上部：日付選択 -->
     <div class="date-controls-wrapper">

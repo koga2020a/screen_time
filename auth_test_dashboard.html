@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>ダッシュボード</h1>
+  <div id="user-info"></div>
+  <div id="rpc-result"></div>
+  <button id="logout-btn">ログアウト</button>
+  
+  <script>
+    const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    // 現在のセッションを取得
+    async function init() {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session) {
+        alert('ログインされていません。');
+        window.location.href = 'login.html';
+        return;
+      }
+      const user = session.user;
+      document.getElementById('user-info').innerText = `ユーザーID: ${user.id}`;
+      
+      // RPC関数 "auth_test_register_user_record" を呼び出して、ユーザーのuuidと現在日時をテーブルに登録
+      const { data: rpcData, error: rpcError } = await supabase.rpc('auth_test_register_user_record', { _user_id: user.id });
+      if (rpcError) {
+        document.getElementById('rpc-result').innerText = 'RPCエラー: ' + rpcError.message;
+      } else {
+        document.getElementById('rpc-result').innerText = 'ユーザーレコードの登録に成功しました。';
+      }
+    }
+    
+    init();
+    
+    // ログアウト処理
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        alert('ログアウトエラー: ' + error.message);
+      } else {
+        window.location.href = 'auth_test_login.html';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -10,7 +10,12 @@ global scResultTimeFile := screenTimeDir "\sc_result_time.txt"
 #SingleInstance Force
 SetTimer, MainLoop, 20000  ; 20秒ごとに `MainLoop` を実行
 
+; タスクトレイのメニュー設定（Exitメニューを追加）
+Menu, Tray, NoStandard
+Menu, Tray, Add, Exit, AttemptExit  ; タスクトレイに「Exit」を追加
+Menu, Tray, Default, Exit        ; 右クリック時のデフォルト動作を「Exit」に設定
 Menu, Tray, Tip, 初期化中...
+
 global watchTimeContent_giant := "未取得"
 global watchTimeContent_hover := "未取得"
 
@@ -31,7 +36,6 @@ CheckFile:
     Run, python %screenTimeDir%\sclog.py log-pc-activity %user_id% %pc_id%, , Hide
     Run, python %screenTimeDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile%, , Hide
     Sleep, 3000
-
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
     if (fileContent = "F") {
@@ -79,15 +83,36 @@ IsLidClosed() {
     FileRead, lidStatus, %screenTimeDir%\lid_status.txt
     lidStatus := Trim(lidStatus)
     
-    ; または方法3: StringCompare使用
     if (lidStatus ~= "Lid Open") {
-        ;msgbox, リッドが開いています
-        return False  ; リッドが開いている
+        return False  ; 蓋が開いている
     }
     if (lidStatus ~= "Lid Closed") {
-        ;msgbox, リッドが閉じています
-       return True  ; リッドが閉じている
+       return True  ; 蓋が閉じている
     }
-    ;msgbox, %lidStatus%
-    return False  ; リッドが開いている
+    return False  ; 蓋が開いているとみなす
 }
+
+; === 以下、タスクトレイの Exit 機能用コード ===
+
+AttemptExit:
+    Gui, Destroy  ; 既存のGUIを破棄
+    Gui, Add, Text,, 終了するには「del」と入力してください:
+    Gui, Add, Edit, vExitInput Password  ; 入力をマスク（パスワード風）
+    Gui, Add, Button, Default gCheckExit, 確認
+    Gui, Show,, 終了確認
+
+    SetTimer, AutoCloseGui, -10000  ; 10秒後にウィンドウを閉じる
+Return
+
+CheckExit:
+    Gui, Submit, NoHide
+    If (ExitInput == "del") {  ; 正確に "del" を入力した場合のみ終了
+        ExitApp
+    } Else {
+        MsgBox, 入力が間違っています。終了できません。
+    }
+Return
+
+AutoCloseGui:
+    Gui, Destroy  ; 10秒後にウィンドウを閉じる
+Return

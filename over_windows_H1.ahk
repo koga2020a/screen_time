@@ -39,7 +39,7 @@ CheckFile:
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
     if (fileContent = "F") {
-        if (A_ComputerName ~= "DESKTOP") {
+        if (A_ComputerName ~= "DESKTOP-UQMUFI6") {
             ; 画面の幅と高さを取得
             SysGet, MonitorWorkArea, MonitorWorkArea
             ; 画面の右下に表示（右端から20ピクセル、下端から40ピクセル）

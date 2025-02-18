@@ -45,19 +45,20 @@
             throw new Error('ログインセッションが見つかりません');
           }
 
-          const user = session.user;
+          // セッションから取得できる情報を表示する
           userInfo.innerHTML = `
             <strong>ユーザー情報:</strong><br>
-            ID: ${user.id}<br>
-            メール: ${user.email}<br>
-            最終ログイン: ${new Date(user.last_sign_in_at).toLocaleString()}
+            <p>ユーザーID: ${session.user.id}</p>
+            <p>メールアドレス: ${session.user.email}</p>
+            <p>最終ログイン: ${new Date(session.user.last_sign_in_at).toLocaleString()}</p>
+            <p>セッション有効期限: ${new Date(session.expires_at * 1000).toLocaleString()}</p>
           `;
 
           // RPCを呼び出してユーザーレコードを登録
           statusMessage.textContent = 'ユーザーレコードを登録中...';
           const { data: rpcData, error: rpcError } = await supabaseClient.rpc(
             'auth_test_register_user_record',
-            { _user_id: user.id }
+            { _user_id: session.user.id }
           );
 
           if (rpcError) throw rpcError;
@@ -67,9 +68,9 @@
 
           // 登録されたレコードを確認
           const { data: records, error: fetchError } = await supabaseClient
-            .from('auth_test_user_records')  // テーブル名を修正
+            .from('auth_test_user_records')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', session.user.id)
             .single();
 
           if (fetchError) throw fetchError;
@@ -86,7 +87,7 @@
             recordInfo.textContent = 'レコードが見つかりませんでした。';
           }
 
-          statusMessage.textContent = '';  // ステータスメッセージをクリア
+          statusMessage.textContent = ''; // ステータスメッセージをクリア
 
         } catch (err) {
           console.error('初期化エラー:', err);

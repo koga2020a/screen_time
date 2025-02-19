@@ -5,6 +5,12 @@ global pc_id := "4e27bdfa-83f9-437f-a06b-0fc108c99039"  ; gam
 global isAbleWatchFile := screenTimeDir "\is_able_watch.txt"
 global scResultTimeFile := screenTimeDir "\sc_result_time.txt"
 
+; 起動時に中間ファイルを削除する
+FileDelete, %isAbleWatchFile%
+FileDelete, %scResultTimeFile%_giant
+FileDelete, %scResultTimeFile%_hover
+FileDelete, %screenTimeDir%\lid_status.txt
+
 #Persistent
 #NoEnv
 #SingleInstance Force

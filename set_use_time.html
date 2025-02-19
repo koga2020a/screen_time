@@ -117,16 +117,26 @@
   </div>
 
   <script>
+    // グローバルな設定
+    const SUPABASE_PROJECT_ID = 'xalrqqutkxzwzvahqpjg';
+    const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
+    let HEADERS;
     let supabaseClient;
     let USER_ID = null;
 
     window.onload = function() {
       const urlParams = new URLSearchParams(window.location.search);
-      const SUPABASE_PROJECT_ID = 'xalrqqutkxzwzvahqpjg';
-      const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
-      const SUPABASE_API_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+      // URL パラメータから SUPABASE_KEY を取得（なければデフォルト値を利用）
+      const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+      
+      // HEADERS のグローバル変数の設定
+      HEADERS = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      };
 
-      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_API_KEY, {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: {
           autoRefreshToken: true,
           persistSession: true,
@@ -134,11 +144,18 @@
         }
       });
 
-      // 初期化を実行
+      // セッションチェックと初期化
       initializeWithSession();
+
+      // 時刻入力欄の初期値設定
+      const timeInput = document.getElementById('timeInput');
+      const now = new Date();
+      const hh = now.getHours().toString().padStart(2, '0');
+      const mm = now.getMinutes().toString().padStart(2, '0');
+      timeInput.value = `${hh}:${mm}`;
+      updateFormatDisplay();
     };
 
-    // セッションチェックと初期化
     async function initializeWithSession() {
       const {
         data: { session },
@@ -245,14 +262,10 @@
       }
       
       try {
-        // RPC 経由で関数を呼び出す
+        // RPC 経由で関数を呼び出す（HEADERS を利用）
         const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/append_pc_activity`, {
           method: 'POST',
-          headers: {
-            'apikey': SUPABASE_API_KEY,
-            'Authorization': `Bearer ${SUPABASE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
+          headers: HEADERS,
           body: JSON.stringify({
             p_pc_id: pcId,
             p_user_id: userId,

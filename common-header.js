@@ -32,6 +32,50 @@
       });
       container.appendChild(fragment);
 
+      // メニューアイテムにアニメーションとアイコンを追加
+      const menuItems = container.querySelectorAll('.menu-item');
+      menuItems.forEach(item => {
+        // アイコンの追加
+        const icon = document.createElement('i');
+        const text = item.textContent.trim();
+        
+        if (text.includes('PC使用状況タイムライン')) {
+          icon.className = 'fas fa-chart-line';
+        } else if (text.includes('PCアクティビティ登録')) {
+          icon.className = 'fas fa-plus-circle';
+        } else if (text.includes('PC視聴時間修正')) {
+          icon.className = 'fas fa-edit';
+        }
+        
+        // アイコンを先頭に挿入
+        item.insertBefore(icon, item.firstChild);
+        icon.style.marginRight = '8px';
+
+        // ホバーアニメーションのためのスタイル追加
+        item.style.cssText = `
+          transition: all 0.3s ease;
+          position: relative;
+          cursor: pointer;
+          display: inline-block;
+          padding: 8px 16px;
+          text-decoration: none;
+          color: #333;
+        `;
+        
+        // ホバー時のイベントリスナー
+        item.addEventListener('mouseenter', () => {
+          item.style.transform = 'translateX(10px)';
+          item.style.color = '#007bff';
+          icon.style.color = '#007bff';
+        });
+        
+        item.addEventListener('mouseleave', () => {
+          item.style.transform = 'translateX(0)';
+          item.style.color = '#333';
+          icon.style.color = '#333';
+        });
+      });
+
       // Supabaseライブラリ読み込み後にセッション情報を取得してメールアドレスを表示する関数
       function displaySessionEmail() {
         const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';

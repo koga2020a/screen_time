@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>PC視聴時間管理</title>
+  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body {
@@ -115,29 +118,32 @@
     const SUPABASE_PROJECT_ID = 'xalrqqutkxzwzvahqpjg';
     const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
 
-    // HEADERS をグローバル変数として宣言しておく
-    let HEADERS;
+    // グローバル変数としてsupabaseClientを1つだけ保持
     let supabaseClient;
     let USER_ID = null;
+
+    // APIリクエスト用のヘッダーを定義
+    const HEADERS = {
+      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA',
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    };
 
     window.onload = function() {
       const urlParams = new URLSearchParams(window.location.search);
       const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
 
-      // HEADERS を設定
-      HEADERS = {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY
-      };
-
-      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true
-        }
-      });
+      // supabaseClientが未初期化の場合のみ初期化を行う
+      if (!supabaseClient) {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true
+          }
+        });
+      }
 
       // 初期化を実行
       initializeWithSession();

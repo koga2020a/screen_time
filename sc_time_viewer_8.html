@@ -82,13 +82,15 @@
     .day-content {
       display: flex;
       gap: 10px;
-      height: 80vh;
+      height: 600px; /* 固定高さを設定 */
+      position: relative;
     }
     .time-markers {
       width: 50px;
       position: relative;
       border-right: 1px solid #ddd;
       height: 100%;
+      flex-shrink: 0;
     }
     .time-marker {
       position: absolute;
@@ -96,6 +98,20 @@
       text-align: right;
       font-size: 0.8em;
       color: #666;
+      padding-right: 5px;
+      transform: translateY(-50%); /* センタリング調整 */
+      z-index: 1;
+    }
+    /* マーカーに対応する水平線 */
+    .time-marker::after {
+      content: '';
+      position: absolute;
+      left: 100%; /* マーカーの右端から */
+      top: 50%;
+      width: 100vw; /* 十分な長さ */
+      height: 1px;
+      background-color: rgba(0,0,0,0.05);
+      z-index: -1;
     }
     .graphs-container {
       display: flex;
@@ -105,6 +121,7 @@
       overflow-x: auto;
       height: 100%;
       justify-content: center;
+      position: relative;
     }
 
     /* 各タイムライン（1PCまたは総視聴）のラッパー */
@@ -137,7 +154,8 @@
       background: #f8f8f8;
       padding: 4px;
       border-radius: 4px;
-      height: 400px; /* 固定高さ */
+      height: 500px; /* グラフエリアの高さを調整 */
+      width: 90px;
     }
     .loading, .error {
       text-align: center;
@@ -153,6 +171,17 @@
       margin-top: 10px;
       font-size: 0.9em;
       color: #444;
+    }
+    /* 時間帯セグメント */
+    .time-segment {
+      position: absolute;
+      left: 0;
+      right: 0;
+      border-radius: 2px;
+      transition: opacity 0.2s;
+    }
+    .time-segment:hover {
+      opacity: 0.8;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -171,8 +200,6 @@
         <button id="nextDate" class="arrow-button">&#8594;</button>
       </div>
     </div>
-    <!-- タイトル -->
-    <!-- <h1 class="main-title">PC使用状況タイムライン</h1> -->
     <!-- 各日のセット（左から：2日前、1日前、今日） -->
     <div id="setsContainer" class="sets-container">
       <!-- 各日セットはJSで生成 -->
@@ -196,6 +223,9 @@
     });
 
     let USER_ID = null;
+    // 表示の定数：開始・終了時間
+    const DISPLAY_START_HOUR = 5; // 5:00 から
+    const DISPLAY_END_HOUR = 23; // 23:59 まで
 
     // セッションチェックと初期化
     async function initializeWithSession() {
@@ -213,8 +243,26 @@
         const now = new Date();
         const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
         document.getElementById('datePicker').value = formatDate(jstDate);
+        
+        // 前後の日付移動ボタンのイベントを設定
+        document.getElementById('prevDate').addEventListener('click', () => {
+          const currentDate = new Date(document.getElementById('datePicker').value);
+          currentDate.setDate(currentDate.getDate() - 1);
+          document.getElementById('datePicker').value = formatDate(currentDate);
+          fetchAndRenderAllDays();
+        });
+        
+        document.getElementById('nextDate').addEventListener('click', () => {
+          const currentDate = new Date(document.getElementById('datePicker').value);
+          currentDate.setDate(currentDate.getDate() + 1);
+          document.getElementById('datePicker').value = formatDate(currentDate);
+          fetchAndRenderAllDays();
+        });
+        
+        // 日付選択時のイベントを設定
+        document.getElementById('datePicker').addEventListener('change', fetchAndRenderAllDays);
+        
         await fetchAndRenderAllDays();
-
       } catch (error) {
         console.error('セッション初期化エラー:', error);
         window.location.href = 'auth_test_login.html';
@@ -227,10 +275,12 @@
       const mins = minutes % 60;
       return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     }
+    
     function getMinutesFromTime(hours, minutes) {
       return hours * 60 + minutes;
     }
-    // 時刻文字列（例："16:50-16:50"）をパースして開始・終了分を取得するように修正
+    
+    // 時刻文字列（例："16:50-16:50"）をパースして開始・終了分を取得
     function parseTimeRange(rangeStr) {
       const [startStr, endStr] = rangeStr.split('-');
       const [startHour, startMin] = startStr.split(':').map(n => parseInt(n, 10));
@@ -240,6 +290,7 @@
         end: endHour * 60 + endMin
       };
     }
+    
     // 時間帯をマージする補助関数
     function mergeTimeRanges(ranges) {
       // 重複を除去
@@ -273,6 +324,7 @@
       
       return merged;
     }
+    
     // 新たなタイムライン描画関数：時間帯文字列の配列から描画
     function createTimelineFromRanges(pcName, timeRanges, activityCount, isTotal = false) {
       const wrapper = document.createElement('div');
@@ -296,89 +348,80 @@
       
       const timeline = document.createElement('div');
       timeline.className = `timeline ${isTotal ? 'total-usage' : ''}`;
-      timeline.style.position = 'relative';
-      timeline.style.height = '400px';
       
-      const startMargin = getMinutesFromTime(5, 0);
-      const endMargin = getMinutesFromTime(23, 59);
-      const totalRange = endMargin - startMargin + 1;
+      // 表示時間範囲の定義を統一
+      const startMargin = getMinutesFromTime(DISPLAY_START_HOUR, 0);
+      const endMargin = getMinutesFromTime(DISPLAY_END_HOUR, 59);
+      const totalRange = endMargin - startMargin;
       
       timeRanges.forEach(rangeStr => {
         const { start, end } = parseTimeRange(rangeStr);
-        // 利用可能な時間帯のみ描画
-        if (start < startMargin || end > endMargin) return;
+        // 表示可能な時間帯内のみ描画
+        if (end < startMargin || start > endMargin) return;
+        
+        // 表示範囲内に収める
+        const adjustedStart = Math.max(start, startMargin);
+        const adjustedEnd = Math.min(end, endMargin);
+        
         const segDiv = document.createElement('div');
-        const topPercent = ((start - startMargin) / totalRange) * 170;
-        const heightPercent = ((end - start + 1) / totalRange) * 170;
-        segDiv.style.position = 'absolute';
-        segDiv.style.left = '0';
-        segDiv.style.right = '0';
+        segDiv.className = 'time-segment';
+        
+        // 位置計算を修正（開始値をstartMarginから引く）
+        const topPercent = ((adjustedStart - startMargin) / totalRange) * 100;
+        const heightPercent = ((adjustedEnd - adjustedStart) / totalRange) * 100;
+        
         segDiv.style.top = `${topPercent}%`;
         segDiv.style.height = `${heightPercent}%`;
-        segDiv.style.borderRadius = '2px';
         segDiv.style.backgroundColor = isTotal ? '#22c55e' : '#2563eb';
         segDiv.title = `${getTimeString(start)} - ${getTimeString(end)}`;
+        
         timeline.appendChild(segDiv);
       });
       
       wrapper.appendChild(timeline);
       return wrapper;
     }
-    // 分析結果をまとめて表示するDOM要素を生成
-    function createWatchingAnalysisElement(totalData, diffData) {
-      const container = document.createElement('div');
-      container.className = 'analysis-summary';
-      const title = document.createElement('h3');
-      title.textContent = '視聴時間分析';
-      container.appendChild(title);
-      
-      const p1 = document.createElement('p');
-      p1.textContent = `許可: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, ベース: ${totalData.default_time}分)`;
-      container.appendChild(p1);
-      
-      const p2 = document.createElement('p');
-      let diffMessage = "";
-      if (diffData.time_difference > 0) {
-        diffMessage = `${diffData.time_difference}分（超過してる）`;
-      } else if (diffData.time_difference < 0) {
-        diffMessage = `${diffData.time_difference}分（許容）`;
-      } else {
-        diffMessage = `${diffData.time_difference}分`;
-      }
-      p2.textContent = `視聴時間: ${diffData.unique_minutes_count}分, 差分: ${diffMessage}`;
-      container.appendChild(p2);
-      
-      return container;
-    }
-    // タイムマーカー生成（05:00, 08:00, 11:00, 14:00, 17:00, 20:00, 23:00）
+    
+    // タイムマーカー生成
     function createTimeMarkers() {
       const container = document.createElement('div');
       container.className = 'time-markers';
-      const startMinutes = getMinutesFromTime(5, 0);
-      const endMinutes = getMinutesFromTime(23, 59);
-      const totalRange = endMinutes - startMinutes + 1;
+      
+      const startMinutes = getMinutesFromTime(DISPLAY_START_HOUR, 0);
+      const endMinutes = getMinutesFromTime(DISPLAY_END_HOUR, 59);
+      const totalRange = endMinutes - startMinutes;
+      
+      // 主要な時間（5, 8, 11, 14, 17, 20, 23時）を表示
       const markerHours = [5, 8, 11, 14, 17, 20, 23];
+      
       markerHours.forEach(hour => {
         const minutes = hour * 60;
         const marker = document.createElement('div');
         marker.className = 'time-marker';
+        
+        // 位置計算（開始値をstartMarginから引く）
         const topPercent = ((minutes - startMinutes) / totalRange) * 100;
-        marker.style.top = topPercent + '%';
-        marker.textContent = (hour < 10 ? '0' : '') + hour + ":00";
+        marker.style.top = `${topPercent}%`;
+        marker.textContent = `${hour.toString().padStart(2, '0')}:00`;
+        
         container.appendChild(marker);
       });
+      
       return container;
     }
+    
     // 日付を YYYY-MM-DD 形式に
     function formatDate(date) {
       return date.toISOString().split('T')[0];
     }
+    
     // APIリクエスト用の共通ヘッダー
     const HEADERS = {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json'
     };
+    
     // １日のセット生成：RPC経由で新SQL関数からデータを取得してタイムライン描画
     async function renderDaySet(dateStr) {
       const daySet = document.createElement('div');
@@ -412,7 +455,7 @@
       daySet.appendChild(dayContent);
       
       try {
-        // 新しいリクエストペイロード形式を利用する（オブジェクト）
+        // リクエストペイロード形式
         const requestBody = {
           target_user_id: USER_ID,
           target_date: dateStr
@@ -502,7 +545,7 @@
         const diffDataArray = await diffResponse.json();
         const diffData = diffDataArray[0] || {};
         
-        // 分析サマリーを day-label の下に表示
+        // 分析サマリーを表示
         totalViewLabel.textContent = `許可: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, ベース: ${totalData.default_time}分)`;
 
         // 差分が正の場合：「超過してる」、負の場合：「許容」、0の場合はそのまま表示
@@ -510,7 +553,7 @@
         if (diffData.time_difference > 0) {
           diffLabel = `${diffData.time_difference}分（超過してる）`;
         } else if (diffData.time_difference < 0) {
-          diffLabel = `${diffData.time_difference}分（許容）`;
+          diffLabel = `${Math.abs(diffData.time_difference)}分（許容）`;
         } else {
           diffLabel = `${diffData.time_difference}分`;
         }
@@ -522,7 +565,8 @@
       }
       return daySet;
     }
-    // pcData取得不要になったので、選択日とその前日2日分のセットを生成
+    
+    // 選択日とその前日2日分のセットを生成
     async function fetchAndRenderAllDays() {
       const setsContainer = document.getElementById('setsContainer');
       setsContainer.innerHTML = '<div class="loading">データを読み込んでいます...</div>';
@@ -530,8 +574,8 @@
       const selectedDateStr = document.getElementById('datePicker').value;
       const selectedDate = new Date(selectedDateStr);
       const dates = [
+        formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 2)),
         formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 1)),
-        formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 0)),
         formatDate(selectedDate)
       ];
       
@@ -545,10 +589,8 @@
         setsContainer.innerHTML = '<div class="error">データの取得に失敗しました</div>';
       }
     }
-    // 初期化を実行
-    initializeWithSession();
-
-    // PC名を取得する関数を追加
+    
+    // PC名を取得する関数
     async function getPcName(pcId) {
       const requestBody = {
         p_pc_id: pcId
@@ -575,6 +617,9 @@
         return pcId; // エラーの場合はIDを返す
       }
     }
+    
+    // 初期化を実行
+    initializeWithSession();
   </script>
 </body>
 </html>

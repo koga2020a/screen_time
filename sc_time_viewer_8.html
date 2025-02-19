@@ -341,7 +341,7 @@
       
       const totalMins = document.createElement('div');
       totalMins.className = 'total-minutes';
-      totalMins.textContent = `${activityCount}回`;
+      totalMins.textContent = `${activityCount}分`;
       pcInfo.appendChild(totalMins);
       
       wrapper.appendChild(pcInfo);
@@ -574,8 +574,8 @@
       const selectedDateStr = document.getElementById('datePicker').value;
       const selectedDate = new Date(selectedDateStr);
       const dates = [
-        formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 2)),
         formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 1)),
+        formatDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() - 0)),
         formatDate(selectedDate)
       ];
       

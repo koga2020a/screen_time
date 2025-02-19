@@ -1,5 +1,5 @@
 global screenTimeDir := "c:\src\screen_time"
-global user_id := "b4e45080-6c59-43e0-a644-ecbf07eace02"
+global user_id := "616bd16a-d9c1-4c41-8b96-414646d6d218"
 global pc_id := "4e27bdfa-83f9-437f-a06b-0fc108c99039"  ; gam
 ;global pc_id := " 9e7ec6df-31af-4e88-ba60-66783d50bc08"  ; H1
 global isAbleWatchFile := screenTimeDir "\is_able_watch.txt"

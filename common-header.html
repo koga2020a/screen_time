@@ -1,10 +1,28 @@
 <!DOCTYPE html>
 <!-- 共通ヘッダー：サイトタイトルとナビゲーションリンク -->
+<head>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    nav a {
+      transition: transform 0.3s ease;
+      display: inline-block;
+    }
+    nav a:hover {
+      transform: scale(1.1);
+    }
+  </style>
+</head>
 <header style="background:#2563eb; padding:10px; color:white; display:flex; align-items:center; justify-content:space-between;">
-  <h1 style="margin:0;">サイトのタイトル</h1>
+  <h1 style="margin:0;">アクティビティ</h1>
   <nav>
-    <a href="sc_time_viewer_8.html" style="color:white; margin-right:15px; text-decoration:none;">PC使用状況タイムライン</a>
-    <a href="set_use_time.html" style="color:white; margin-right:15px; text-decoration:none;">PCアクティビティ登録</a>
-    <a href="add_time.html" style="color:white; text-decoration:none;">PC視聴時間管理</a>
+    <a href="sc_time_viewer_8.html" style="color:white; margin-right:15px; text-decoration:none;">
+      <i class="fas fa-chart-line"></i> PC使用状況タイムライン
+    </a>
+    <a href="set_use_time.html" style="color:white; margin-right:15px; text-decoration:none;">
+      <i class="fas fa-keyboard"></i> PCアクティビティ登録
+    </a>
+    <a href="add_time.html" style="color:white; text-decoration:none;">
+      <i class="fas fa-clock"></i> PC視聴時間修正
+    </a>
   </nav>
 </header> 

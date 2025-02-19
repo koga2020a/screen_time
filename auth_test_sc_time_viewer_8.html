@@ -152,6 +152,7 @@
       color: #444;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <!-- 共通ヘッダーの読み込み -->
@@ -183,12 +184,46 @@
   </div>
 
   <script>
-    // URLのGETパラメータで"user_id"が指定されていればそれを使用、なければデフォルトのUSER_IDを利用
+    // URLのGETパラメータで"project_id"が指定されていればそれを使用
     const urlParams = new URLSearchParams(window.location.search);
     const SUPABASE_PROJECT_ID = urlParams.get('project_id') || 'xalrqqutkxzwzvahqpjg';
     const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
     const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
-    const USER_ID = urlParams.get('user_id') || '616bd16a-d9c1-4c41-8b96-414646d6d218';
+
+    // Supabaseクライアントの初期化
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      }
+    });
+
+    let USER_ID = null;
+
+    // セッションチェックと初期化
+    async function initializeWithSession() {
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        if (!session) {
+          window.location.href = 'auth_test_login.html';
+          return;
+        }
+
+        USER_ID = session.user.id;
+        // 日付の初期化とデータ取得を開始
+        const now = new Date();
+        const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+        document.getElementById('datePicker').value = formatDate(jstDate);
+        await fetchAndRenderAllDays();
+
+      } catch (error) {
+        console.error('セッション初期化エラー:', error);
+        window.location.href = 'auth_test_login.html';
+      }
+    }
 
     // ヘルパー関数：分を HH:MM 形式に
     function getTimeString(minutes) {
@@ -514,29 +549,8 @@
         setsContainer.innerHTML = '<div class="error">データの取得に失敗しました</div>';
       }
     }
-    // 初期値：今日（ローカル）
-    const now = new Date();
-    const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9に変換
-    document.getElementById('datePicker').value = formatDate(jstDate);
-    
-    // イベントリスナー
-    document.getElementById('datePicker').addEventListener('change', fetchAndRenderAllDays);
-    document.getElementById('prevDate').addEventListener('click', () => {
-      const dateInput = document.getElementById('datePicker');
-      const currentDate = new Date(dateInput.value);
-      currentDate.setDate(currentDate.getDate() - 1);
-      dateInput.value = formatDate(currentDate);
-      fetchAndRenderAllDays();
-    });
-    document.getElementById('nextDate').addEventListener('click', () => {
-      const dateInput = document.getElementById('datePicker');
-      const currentDate = new Date(dateInput.value);
-      currentDate.setDate(currentDate.getDate() + 1);
-      dateInput.value = formatDate(currentDate);
-      fetchAndRenderAllDays();
-    });
-    
-    fetchAndRenderAllDays();
+    // 初期化を実行
+    initializeWithSession();
 
     // PC名を取得する関数を追加
     async function getPcName(pcId) {

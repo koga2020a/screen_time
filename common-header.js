@@ -74,7 +74,7 @@
   `;
   document.head.appendChild(customStyle);
 
-  // Supabaseライブラリを使ってセッション情報を取得してメールアドレスを表示する関数
+  // Supabaseライブラリを使ってセッション情報とユーザー名を取得して表示する関数
   function displaySessionEmail() {
     try {
       const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
@@ -84,7 +84,7 @@
       if (typeof supabase !== 'undefined') {
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        supabaseClient.auth.getSession().then(({ data: { session }, error }) => {
+        supabaseClient.auth.getSession().then(async ({ data: { session }, error }) => {
           const userDisplay = document.getElementById('user-display-name');
           if (!userDisplay) return;
           
@@ -94,8 +94,28 @@
           }
           
           if (session && session.user) {
-            userDisplay.textContent = `ようこそ, ${session.user.email} さん`;
-            console.log('ユーザー情報:', session.user);
+            try {
+              // get_user_name関数を呼び出す
+              const { data: userName, error: funcError } = await supabaseClient.rpc(
+                'get_user_name',
+                { p_user_id: session.user.id }
+              );
+              
+              if (funcError) {
+                console.error('ユーザー名取得エラー:', funcError.message);
+                userDisplay.textContent = `ようこそ, ${session.user.email} さん`;
+              } else if (userName) {
+                userDisplay.textContent = `ようこそ, ${userName} さん`;
+              } else {
+                // ユーザー名が見つからない場合はメールアドレスを表示
+                userDisplay.textContent = `ようこそ, ${session.user.email} さん`;
+              }
+              console.log('ユーザー情報:', session.user);
+              
+            } catch (funcErr) {
+              console.error('関数呼び出しエラー:', funcErr);
+              userDisplay.textContent = `ようこそ, ${session.user.email} さん`;
+            }
           } else {
             console.log('セッションまたはユーザー情報がありません');
             userDisplay.textContent = 'ログインしていません';

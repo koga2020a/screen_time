@@ -132,6 +132,23 @@ CREATE TABLE watch_time_log (
 2. 以下のストアドプロシージャを作成します：
 
 ```sql
+-- 1. 指定されたユーザIDに対応するユーザ名を取得するプロシージャ
+CREATE OR REPLACE FUNCTION get_user_name(p_user_id UUID)
+RETURNS VARCHAR(255) AS $$
+DECLARE
+    v_user_name VARCHAR(255);
+BEGIN
+    SELECT user_name INTO v_user_name
+    FROM users_watch_time
+    WHERE user_id = p_user_id;
+
+    RETURN v_user_name;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+
+```sql
 -- 1. 指定した JST の日付と pc_id に基づいてレコードを取得するプロシージャ
 CREATE OR REPLACE FUNCTION get_pc_activity_by_pc_id(
     p_pc_id UUID,      -- 検索対象のPC ID

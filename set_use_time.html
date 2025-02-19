@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>PCアクティビティ登録</title>
+  <title>PCアクティビティ登録/削除</title>
   <link rel="icon" href="data:,">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -41,6 +41,11 @@
     .valid-format {
       border-bottom: 2px solid green !important;
     }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
     button {
       padding: 8px 16px;
       background: #2563eb;
@@ -51,6 +56,12 @@
     }
     button:hover {
       background: #1d4ed8;
+    }
+    button.delete {
+      background: #dc2626;
+    }
+    button.delete:hover {
+      background: #b91c1c;
     }
     .error {
       color: #dc2626;
@@ -79,10 +90,8 @@
   <script src="common-header.js"></script>
 
   <div class="card">
-    <h3>PCアクティビティ登録</h3>
+    <h3>PCアクティビティ登録/削除</h3>
     
-    <!-- User ID 入力フィールドを削除 -->
-
     <!-- PC選択 -->
     <div class="input-group">
       <label for="pcIdSelect">PC:</label>
@@ -108,7 +117,10 @@
       <span id="formatPast">連続登録（過去方向）</span>
     </div>
     
-    <button id="registerActivityButton">登録</button>
+    <div class="button-group">
+      <button id="registerActivityButton">登録</button>
+      <button id="deleteActivityButton" class="delete">削除</button>
+    </div>
     <div id="activityMessage"></div>
   </div>
 
@@ -283,8 +295,82 @@
           `<div class="error">エラー: ${error.message}</div>`;
       }
     }
+
+    // 削除ボタン押下時の処理（Supabase の RPC 関数 delete_pc_activity を利用）
+    async function deleteActivity() {
+      // PC ID の取得
+      let pcId;
+      const pcSelect = document.getElementById('pcIdSelect');
+      if (pcSelect.value === 'other') {
+        pcId = document.getElementById('pcIdOther').value.trim();
+        if (!pcId) {
+          document.getElementById('activityMessage').innerHTML =
+            `<div class="error">PC IDを入力してください</div>`;
+          return;
+        }
+      } else {
+        pcId = pcSelect.value;
+      }
+      
+      // User ID の取得（セッションから取得）
+      if (!USER_ID) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">ユーザー情報の取得に失敗しました</div>`;
+        return;
+      }
+      
+      const userId = USER_ID;
+      
+      const timeStr = timeInput.value.trim();
+      if (!timeStr) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">時刻を入力してください</div>`;
+        return;
+      }
+      
+      let parsed;
+      try {
+        parsed = parseTimeInput(timeStr);
+      } catch (error) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">${error.message}</div>`;
+        return;
+      }
+
+      // 削除確認
+      if (!confirm(`${parsed.times.length}件のアクティビティを削除しますか？`)) {
+        return;
+      }
+      
+      try {
+        // RPC 経由で削除関数を呼び出す（HEADERS を利用）
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_pc_activity`, {
+          method: 'POST',
+          headers: HEADERS,
+          body: JSON.stringify({
+            p_pc_id: pcId,
+            p_user_id: userId,
+            p_minutes: parsed.times
+          })
+        });
+        if (!response.ok) throw new Error('削除に失敗しました');
+        const deletedRows = await response.json();
+        const deletedCount = deletedRows.length;
+        const notFoundCount = parsed.times.length - deletedCount;
+        let msg = `${deletedCount}件削除しました`;
+        if (notFoundCount > 0) {
+          msg += `（該当するデータがなかった項目: ${notFoundCount}件）`;
+        }
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="success">${msg}</div>`;
+      } catch (error) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">エラー: ${error.message}</div>`;
+      }
+    }
     
     document.getElementById('registerActivityButton').addEventListener('click', registerActivity);
+    document.getElementById('deleteActivityButton').addEventListener('click', deleteActivity);
     
     // 時刻入力欄および形式認識表示の初期化
     window.addEventListener('load', () => {

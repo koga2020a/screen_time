@@ -426,9 +426,69 @@
       }
     }
 
-    // 時間調整を送信する関数
+    // イベントリスナーの設定
+    document.getElementById('submitButton').addEventListener('click', submitTimeAdjustment);
+
+    // --- 新たに追加する関数: モーダルポップアップを表示する ---
+    function showTimeAdjustmentModal(totalAddition, originalAddition) {
+      return new Promise((resolve) => {
+        const modal = document.createElement("div");
+        modal.style.position = "fixed";
+        modal.style.top = "0";
+        modal.style.left = "0";
+        modal.style.width = "100%";
+        modal.style.height = "100%";
+        modal.style.backgroundColor = "rgba(0,0,0,0.5)";
+        modal.style.display = "flex";
+        modal.style.alignItems = "center";
+        modal.style.justifyContent = "center";
+        modal.style.zIndex = "1000";
+        
+        const modalContent = document.createElement("div");
+        modalContent.style.backgroundColor = "#fff";
+        modalContent.style.padding = "20px";
+        modalContent.style.borderRadius = "8px";
+        modalContent.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+        modalContent.innerHTML = `<p>超過分を加算して ${totalAddition} 分の追加できます。<br>どちらの追加を適用しますか？</p>`;
+        
+        const btnTotal = document.createElement("button");
+        btnTotal.textContent = `${totalAddition}分追加`;
+        btnTotal.style.marginRight = "10px";
+        
+        const btnOriginal = document.createElement("button");
+        btnOriginal.textContent = `${originalAddition}分追加`;
+        btnOriginal.style.marginRight = "10px";
+        
+        const btnCancel = document.createElement("button");
+        btnCancel.textContent = "キャンセル";
+        
+        btnTotal.addEventListener("click", () => {
+            document.body.removeChild(modal);
+            resolve(totalAddition);
+        });
+        
+        btnOriginal.addEventListener("click", () => {
+            document.body.removeChild(modal);
+            resolve(originalAddition);
+        });
+        
+        btnCancel.addEventListener("click", () => {
+            document.body.removeChild(modal);
+            resolve(null);
+        });
+        
+        modalContent.appendChild(btnTotal);
+        modalContent.appendChild(btnOriginal);
+        modalContent.appendChild(btnCancel);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+      });
+    }
+
+    // --- submitTimeAdjustment 関数の変更版 ---
     async function submitTimeAdjustment() {
-      const minutes = parseInt(document.getElementById('minutesInput').value);
+      // 入力値を数値に変換（letに変更）
+      let minutes = parseInt(document.getElementById('minutesInput').value);
       if (isNaN(minutes)) {
         document.getElementById('message').innerHTML = `
           <div class="error">有効な数値を入力してください</div>
@@ -436,8 +496,39 @@
         return;
       }
 
+      // 正の数値の場合、超過時間があるかをチェックしてポップアップを表示
+      if (minutes > 0) {
+        const today = getTodayJST();
+        const diffResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              target_user_id: USER_ID,
+              target_date: today
+            })
+          }
+        );
+        if (diffResponse.ok) {
+          const diffDataArray = await diffResponse.json();
+          const diffData = diffDataArray[0] || {};
+          const timeDiff = diffData.time_difference || 0;
+          if (timeDiff > 0) {
+            // 例：入力が 5 分で 2 分超過の場合 → 5+2=7 分の選択肢を提示
+            const totalAddition = minutes + timeDiff;
+            const chosenMinutes = await showTimeAdjustmentModal(totalAddition, minutes);
+            if (chosenMinutes === null) {
+              // キャンセルが選択された場合は処理中断
+              return;
+            }
+            minutes = chosenMinutes;
+          }
+        }
+      }
+
       try {
-        // Supabase のテーブル watch_time_log に直接データを挿入します
+        // Supabase のテーブル watch_time_log へデータを登録
         const response = await fetch(
           `${SUPABASE_URL}/rest/v1/watch_time_log`,
           {
@@ -446,7 +537,6 @@
             body: JSON.stringify({
               user_id: USER_ID,
               added_minutes: minutes
-              // 必要に応じて他のカラムも追加してください
             })
           }
         );
@@ -468,9 +558,6 @@
         `;
       }
     }
-
-    // イベントリスナーの設定
-    document.getElementById('submitButton').addEventListener('click', submitTimeAdjustment);
   </script>
 </body>
 </html>

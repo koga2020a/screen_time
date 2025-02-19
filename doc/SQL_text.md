@@ -1,72 +1,113 @@
-
-# SQL 定義と使用例
-
-本ドキュメントは、PC利用時間や視聴時間の記録・解析システムに関する各テーブルおよび関数の定義、並びに実際の使用例を示します。最新の定義内容（Supabase に登録されたユーザー定義ルーチン一覧を参照）をもとに記述しています。
+以下は、各 SQL 定義や関数、トリガー等に対して、処理内容が分かりやすくなるような適切なコメントを追加した例です。ファイル全体は長くなるため、主要部分ごとにコメント付きコードブロックを示します。必要に応じて、同様の形式でご利用の環境に合わせて調整してください。
 
 ---
 
-## 1. テーブルの基本仕様
+### 1. テーブルの作成
 
-### 1.1 pc_activity_2：PC利用時間記録テーブル
-- **カラム**
-  - `pc_id` (UUID)：PC識別子
-  - `user_id` (UUID)：ユーザー識別子
-  - `minutes_time_jst` (INTEGER)：JSTの00:00からの経過分数（テーブル側で自動計算）
-  - `created_at` (TIMESTAMP WITH TIME ZONE)：レコード作成時（UTC）
-  - `created_at_jst` (TIMESTAMP WITH TIME ZONE)：レコード作成時（JST、デフォルト値：CURRENT_TIMESTAMP AT TIME ZONE 'JST'）
-- **制約**
-  - `(pc_id, user_id, minutes_time_jst)` の組み合わせは一意
+#### 1.1 **pc_activity_2** テーブル
 
-### 1.2 users_watch_time：ユーザーのデフォルト視聴時間設定テーブル
-- **カラム**
-  - `user_id` (UUID)：ユーザー識別子
-  - `default_time` (INTEGER)：デフォルト視聴時間（分）
-  - `created_at_jst` (TIMESTAMP WITH TIME ZONE)：レコード作成時（JST）
-
-### 1.3 watch_time_log：追加視聴時間記録テーブル
-- **カラム**
-  - `user_id` (UUID)：ユーザー識別子
-  - `added_minutes` (INTEGER)：追加された視聴時間（分）
-  - `created_at` (TIMESTAMP WITH TIME ZONE)：レコード作成時（UTC）
-  - `created_at_jst` (TIMESTAMP WITH TIME ZONE)：レコード作成時（JST、デフォルト値：CURRENT_TIMESTAMP AT TIME ZONE 'JST'）
-
----
-
-## 2. テーブルの作成
-
-```sql:doc/SQL_text.md
--- pc_activity_2テーブルの作成
+````sql:doc/SQL_text.md
+-- 【pc_activity_2 テーブル】
+-- このテーブルは、各 PC 利用レコードを記録します。
+-- レコードは PC 識別子 (pc_id)、ユーザー識別子 (user_id)、
+-- 利用時間（JST の 00:00 からの経過分数）などを保持しています。
 CREATE TABLE pc_activity_2 (
-    pc_id UUID NOT NULL,
-    user_id UUID NOT NULL,
-    minutes_time_jst INTEGER NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    created_at_jst TIMESTAMPTZ DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST'),
-    created_date_jst DATE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::DATE,
-    CONSTRAINT pc_activity_2_unique_combination UNIQUE (created_date_jst, pc_id, user_id, minutes_time_jst)
+    pc_id UUID NOT NULL,                      -- PC の識別子
+    user_id UUID NOT NULL,                    -- ユーザーの識別子
+    minutes_time_jst INTEGER NOT NULL,        -- 利用時間を分単位で記録（後でトリガーにより自動計算）
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, -- レコード生成時刻 (UTC)
+    created_at_jst TIMESTAMPTZ DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST'), -- レコード生成時刻 (JST)
+    created_date_jst DATE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::DATE, -- JST の日付のみ
+    CONSTRAINT pc_activity_2_unique_combination UNIQUE (created_date_jst, pc_id, user_id, minutes_time_jst) -- ユニーク制約：同一日付・PC・ユーザー・分数の重複を防止
 );
+````
 
--- base_date の取得
--- (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date で、現在の JST 日付を取得しています。
--- 
--- 時刻計算
--- base_date::timestamp + (m * interval '1 minute') で、base_date の午前0時から p_minutes の分だけ進めた JST の時刻を計算します。
--- 
--- created_at と created_at_jst の設定
--- 
--- created_at_jst にはその計算結果（timestamp 型）をそのままセットします。
--- created_at には、JST として解釈した値を AT TIME ZONE 'JST' で UTC に変換した値をセットしています。
--- （いずれも同じ瞬間を表しますが、保存形式・表示方法が異なります。）
--- ON CONFLICT DO NOTHING
--- で、unique 制約に抵触する場合はスルーします。
+#### 1.2 **users_watch_time** テーブル
+
+````sql:doc/SQL_text.md
+-- 【users_watch_time テーブル】
+-- ユーザーごとのデフォルト視聴時間（分）を管理します。
+CREATE TABLE users_watch_time (
+    user_id UUID NOT NULL,  -- ユーザー識別子
+    default_time INTEGER NOT NULL,  -- ユーザーが設定したデフォルト視聴時間（分）
+    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')  -- レコード作成時刻 (JST)
+);
+````
+
+#### 1.3 **watch_time_log** テーブル
+
+````sql:doc/SQL_text.md
+-- 【watch_time_log テーブル】
+-- ユーザーの追加視聴時間を記録するテーブルです。
+CREATE TABLE watch_time_log (
+    user_id UUID NOT NULL,  -- ユーザー識別子
+    added_minutes INTEGER NOT NULL,  -- 追加で設定された視聴時間（分）
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,  -- 作成時刻 (UTC)
+    created_at_jst TIMESTAMPTZ DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')  -- 作成時刻 (JST)
+);
+````
+
+#### 1.4 テーブルの修正（既存テーブルの JST 列更新）
+
+````sql:doc/SQL_text.md
+-- 【users_watch_time テーブルの修正】
+-- created_at_jst カラムを追加し、既存データの UTC 時刻から JST を計算して更新します。
+ALTER TABLE users_watch_time
+ADD COLUMN created_at_jst TIMESTAMP WITH TIME ZONE;
+
+UPDATE users_watch_time
+SET created_at_jst = created_at AT TIME ZONE 'JST';
+
+ALTER TABLE users_watch_time
+ALTER COLUMN created_at_jst SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST');
+
+
+-- 【watch_time_log テーブルの修正】
+-- created_at_jst カラムを追加し、既存データを JST 表記に更新します。
+ALTER TABLE watch_time_log
+ADD COLUMN created_at_jst TIMESTAMP WITH TIME ZONE;
+
+UPDATE watch_time_log
+SET created_at_jst = created_at AT TIME ZONE 'JST';
+
+ALTER TABLE watch_time_log
+ALTER COLUMN created_at_jst SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST');
+````
+
+---
+
+### 2. FUNCTION の作成
+
+#### 2.1 分を時刻文字列に変換する補助関数
+
+````sql:doc/SQL_text.md
+-- 【minutes_to_time 関数】
+-- 引数の分数を 2 桁ずつの "HHMM" 形式に変換します。
+-- 例: 570 → "09570"（※コロンを入れる場合は適宜書式変更してください）
+CREATE OR REPLACE FUNCTION minutes_to_time(minutes INTEGER)
+RETURNS TEXT AS $$
+BEGIN
+    -- 時間部分: 分を 60 で割った値、分部分: 除算の余りを 0 埋めで連結
+    RETURN LPAD((minutes / 60)::TEXT, 2, '0') || LPAD((minutes % 60)::TEXT, 2, '0');
+END;
+$$ LANGUAGE plpgsql;
+````
+
+#### 2.2 PC 活動記録追加用関数: **append_pc_activity**
+
+````sql:doc/SQL_text.md
+-- 【append_pc_activity 関数】
+-- 指定された PC とユーザーの活動時刻リスト（分単位：int[]）から、
+-- 当日の活動レコードを自動生成して挿入します。各レコードは自動で
+-- created_at, created_at_jst, created_date_jst を設定します。
 CREATE OR REPLACE FUNCTION append_pc_activity(
   p_pc_id uuid,
   p_user_id uuid,
   p_minutes int[]
 ) RETURNS SETOF pc_activity_2 AS $$
 DECLARE
-  base_date date := (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date;
-  ts_jst timestamp;
+  base_date date := (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date;  -- 本日（JST）の日付を取得
+  ts_jst timestamp;  -- ※今回は使用していませんが、拡張用の変数
 BEGIN
   RETURN QUERY
   INSERT INTO pc_activity_2(
@@ -78,120 +119,74 @@ BEGIN
     created_date_jst
   )
   SELECT 
-         p_pc_id,
-         p_user_id,
-         m,
-         -- created_at: JST の時刻を UTC に変換（タイムゾーン付き）
-         ( (base_date::timestamp + (m * interval '1 minute')) AT TIME ZONE 'JST' ),
-         -- created_at_jst: JST のローカルな時刻
+         p_pc_id,                              -- 指定された PC ID
+         p_user_id,                            -- 指定されたユーザー ID
+         m,                                    -- 配列から展開した分数
+         -- created_at: base_date に m 分加算後、JST の時刻を UTC 表記に変換
+         ((base_date::timestamp + (m * interval '1 minute')) AT TIME ZONE 'JST'),
+         -- created_at_jst: base_date に m 分加算（JST のローカル時刻）
          (base_date::timestamp + (m * interval '1 minute')),
-         base_date
-  FROM unnest(p_minutes) as m
-  ON CONFLICT DO NOTHING
-  RETURNING *;
+         base_date                             -- 作成日（JST 日付）
+  FROM unnest(p_minutes) as m  -- 配列を展開して各分を取得
+  ON CONFLICT DO NOTHING         -- ユニーク制約違反時は挿入せずスルー
+  RETURNING *;                   -- 挿入したレコードを返す
 END;
 $$ LANGUAGE plpgsql;
+````
 
+#### 2.3 当日の活動レコード削除関数: **delete_pc_activity**
 
-
--- users_watch_timeテーブルの作成
-CREATE TABLE users_watch_time (
-    user_id UUID NOT NULL,
-    default_time INTEGER NOT NULL,
-    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')
-);
-
--- watch_time_logテーブルの作成
-CREATE TABLE watch_time_log (
-    user_id UUID NOT NULL,
-    added_minutes INTEGER NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')
-);
-```
-
-### 2.1 テーブルの修正
-
-```sql:doc/SQL_text.md
--- users_watch_timeテーブルにJST列を追加し、既存データを更新
-ALTER TABLE users_watch_time
-ADD COLUMN created_at_jst TIMESTAMP WITH TIME ZONE;
-
-UPDATE users_watch_time
-SET created_at_jst = created_at AT TIME ZONE 'JST';
-
-ALTER TABLE users_watch_time
-ALTER COLUMN created_at_jst SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST');
-
-
--- watch_time_logテーブルにJST列を追加し、既存データを更新
-ALTER TABLE watch_time_log
-ADD COLUMN created_at_jst TIMESTAMP WITH TIME ZONE;
-
-UPDATE watch_time_log
-SET created_at_jst = created_at AT TIME ZONE 'JST';
-
-ALTER TABLE watch_time_log
-ALTER COLUMN created_at_jst SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST');
-```
-
----
-
-## 3. FUNCTION の作成
-
-ここでは、テーブル操作、時間計算、利用時間および視聴時間の集計・解析等に用いる関数の定義例を示します。
-
-### 3.1 分を時刻文字列に変換する補助関数
-
-```sql:doc/SQL_text.md
-CREATE OR REPLACE FUNCTION minutes_to_time(minutes INTEGER)
-RETURNS TEXT AS $$
+````sql:doc/SQL_text.md
+-- 【delete_pc_activity 関数】
+-- 本日分の活動記録のうち、指定された PC・ユーザー・分数に一致するレコードを削除します。
+CREATE OR REPLACE FUNCTION delete_pc_activity(
+  p_pc_id uuid,
+  p_user_id uuid,
+  p_minutes int[]
+) RETURNS SETOF pc_activity_2 AS $$
+DECLARE
+  base_date date := (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date;  -- 現在の JST 日付
 BEGIN
-    RETURN LPAD((minutes / 60)::TEXT, 2, '0') || LPAD((minutes % 60)::TEXT, 2, '0');
+  RETURN QUERY
+  DELETE FROM pc_activity_2
+  WHERE pc_id = p_pc_id
+    AND user_id = p_user_id
+    AND created_date_jst = base_date  -- 本日分のレコードのみ対象
+    AND minutes_time_jst IN (SELECT unnest(p_minutes))  -- 指定された分数のレコードを削除
+  RETURNING *;  -- 削除されたレコードを返す
 END;
 $$ LANGUAGE plpgsql;
-```
+````
 
-*説明：与えられた分数を "HHMM" 形式（例："09:30"）の文字列に変換します。*
+#### 2.4 利用時間・視聴時間の集計・解析関数
 
-### 3.2 PC活動記録自動計算用トリガー関数
+##### 2.4.1 **get_total_watch_time**
 
-```sql:doc/SQL_text.md
-CREATE OR REPLACE FUNCTION calculate_minutes_time_jst()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.minutes_time_jst :=
-        EXTRACT(HOUR FROM NEW.created_at_jst)::integer * 60 +
-        EXTRACT(MINUTE FROM NEW.created_at_jst)::integer;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-*説明：pc_activity_2への挿入時に、created_at_jstから分単位の利用時間を計算します。*
-
-### 3.3 利用時間・視聴時間の集計・解析関数
-
-#### 3.3.1 get_total_watch_time
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【get_total_watch_time 関数】
+-- 指定ユーザーの特定日の追加視聴時間（watch_time_log）および
+-- 最新のデフォルト視聴時間（users_watch_time）を集計し、
+-- 総合的な視聴可能時間を計算します。
 CREATE OR REPLACE FUNCTION get_total_watch_time(
     target_user_id UUID,
     target_date DATE
 )
 RETURNS TABLE (
-    total_added_minutes BIGINT,
-    default_time INTEGER,
-    total_time BIGINT
+    total_added_minutes BIGINT,  -- 当日の追加視聴時間合計（分）
+    default_time INTEGER,          -- 最新のデフォルト視聴時間（分）
+    total_time BIGINT              -- 総視聴可能時間（追加 + デフォルト）
 ) AS $$
 BEGIN
     RETURN QUERY
     WITH added_time AS (
+        -- watch_time_log から指定日付の追加視聴時間を集計
         SELECT COALESCE(SUM(added_minutes), 0) AS sum_added_minutes
         FROM watch_time_log
         WHERE user_id = target_user_id
           AND DATE(created_at_jst) = target_date
     ),
     default_watch_time AS (
+        -- users_watch_time から最新の default_time を取得
         SELECT uwt.default_time
         FROM users_watch_time uwt
         WHERE uwt.user_id = target_user_id
@@ -200,24 +195,26 @@ BEGIN
     )
     SELECT 
         at.sum_added_minutes,
-        COALESCE(dwt.default_time, 0),
+        COALESCE(dwt.default_time, 0),  -- default_time が NULL の場合は 0 とする
         at.sum_added_minutes + COALESCE(dwt.default_time, 0)
     FROM added_time at
     CROSS JOIN default_watch_time dwt;
 END;
 $$ LANGUAGE plpgsql;
-```
+````
 
-*説明：指定ユーザーの当日の追加視聴時間（watch_time_log）とデフォルト視聴時間（users_watch_time）を合算し、全体の視聴可能時間を算出します。*
+##### 2.4.2 **get_daily_activity_count**
 
-#### 3.3.2 get_daily_activity_count
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【get_daily_activity_count 関数】
+-- 指定ユーザーの特定日付における、ユニークな活動分数（minutes_time_jst）の
+-- 件数を集計して返します。
 CREATE OR REPLACE FUNCTION get_daily_activity_count(
     target_user_id UUID,
     target_date DATE
 )
 RETURNS TABLE (
-    activity_count BIGINT
+    activity_count BIGINT  -- ユニークな利用分数の件数
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -227,20 +224,22 @@ BEGIN
       AND DATE(created_at_jst) = target_date;
 END;
 $$ LANGUAGE plpgsql;
-```
+````
 
-*説明：指定日付における、ユーザーのPC利用記録（重複しない分数）の総数を返します。*
+##### 2.4.3 **analyze_time_difference**
 
-#### 3.3.3 analyze_time_difference
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【analyze_time_difference 関数】
+-- 指定ユーザーの当日のユニークな利用時間 (活動分数) と、
+-- 視聴可能な総時間（追加視聴 + デフォルト視聴時間）との差分を計算し返します。
 CREATE OR REPLACE FUNCTION analyze_time_difference(
     target_user_id UUID,
     target_date DATE
 )
 RETURNS TABLE (
-    unique_minutes BIGINT,
-    total_watch_time BIGINT,
-    time_difference BIGINT
+    unique_minutes BIGINT,   -- 実際の活動レコード数（ユニークな分）
+    total_watch_time BIGINT,   -- 利用可能な視聴時間の総和（分）
+    time_difference BIGINT    -- activity_count - total_watch_time の差分
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -262,23 +261,26 @@ BEGIN
     CROSS JOIN watch_time_total;
 END;
 $$ LANGUAGE plpgsql;
-```
+````
 
-*説明：実際の利用時間（ユニークな活動分数）と設定された視聴可能時間との差分を計算し、視聴可能か否かの判断に利用します。*
+#### 2.5 PC利用時間分布取得系の関数
 
-### 3.4 PC利用時間分布取得関数
+##### 2.5.1 **get_time_ranges_by_pc**
 
-#### 3.4.1 get_time_ranges_by_pc
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【get_time_ranges_by_pc 関数】
+-- 指定された PC の当日の利用記録から、連続した利用時間帯を抽出して
+-- "HHMM-HHMM" 形式の文字列で返します。
 CREATE OR REPLACE FUNCTION get_time_ranges_by_pc(
     target_user_id UUID,
     target_pc_id UUID,
     target_date DATE
 )
 RETURNS TABLE (
-    time_range TEXT
+    time_range TEXT  -- 利用時間帯（例："0930-1015"）
 ) AS $$
 WITH grouped_times AS (
+    -- 各レコードの分数から、連続性の判定用グループ番号を計算
     SELECT minutes_time_jst,
            minutes_time_jst - (ROW_NUMBER() OVER (ORDER BY minutes_time_jst)) AS grp
     FROM (
@@ -289,6 +291,7 @@ WITH grouped_times AS (
           AND DATE(created_at_jst) = target_date
     ) t
 ), ranges AS (
+    -- 連続する時間帯ごとに、開始と終了の分数を求める
     SELECT 
         MIN(minutes_time_jst) AS range_start,
         MAX(minutes_time_jst) AS range_end
@@ -296,25 +299,29 @@ WITH grouped_times AS (
     GROUP BY grp
     ORDER BY range_start
 )
+-- 分を "HHMM" 文字列に変換して、範囲を連結する
 SELECT minutes_to_time(range_start) || '-' || minutes_to_time(range_end) AS time_range
 FROM ranges;
 $$ LANGUAGE SQL;
-```
+````
 
-*説明：指定したPCに対する利用記録を、連続した区間ごとに "HH:MM-HH:MM" の形式で返します。*
+##### 2.5.2 **get_time_ranges_by_user**
 
-#### 3.4.2 get_time_ranges_by_user
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【get_time_ranges_by_user 関数】
+-- 指定ユーザーの当日の PC 利用記録を、各 PC ごとにまとめ、
+-- 各 PC の活動回数と、連続利用の時間帯（配列）を返します。
 CREATE OR REPLACE FUNCTION get_time_ranges_by_user(
     target_user_id UUID,
     target_date DATE
 )
 RETURNS TABLE (
-    pc_id UUID,
-    activity_count BIGINT,
-    time_ranges TEXT[]
+    pc_id UUID,             -- PC の識別子
+    activity_count BIGINT,  -- 当該 PC でのユニークな活動分数の数
+    time_ranges TEXT[]      -- 各連続した利用区間を示す文字列配列
 ) AS $$
 WITH ordered_data AS (
+    -- PC ごとに各活動分数とその直前の値を取得
     SELECT 
         pc_id,
         minutes_time_jst,
@@ -326,22 +333,26 @@ WITH ordered_data AS (
           AND DATE(created_at_jst) = target_date
     ) t
 ), grouped AS (
+    -- 連続性を判定するために、グループ識別子を計算
     SELECT pc_id, minutes_time_jst,
            minutes_time_jst - ROW_NUMBER() OVER (PARTITION BY pc_id ORDER BY minutes_time_jst) as grp
     FROM ordered_data
 ), ranges AS (
+    -- 各グループごとに開始時刻と終了時刻（分）を取得
     SELECT pc_id,
            MIN(minutes_time_jst) as range_start,
            MAX(minutes_time_jst) as range_end
     FROM grouped
     GROUP BY pc_id, grp
 ), activity_counts AS (
+    -- PC ごとのユニークな活動回数をカウント
     SELECT pc_id, COUNT(DISTINCT minutes_time_jst) as activity_count
     FROM pc_activity_2
     WHERE user_id = target_user_id
       AND DATE(created_at_jst) = target_date
     GROUP BY pc_id
 ), formatted AS (
+    -- 取得した分数を "HHMM-HHMM" 形式の文字列配列へ変換
     SELECT pc_id,
            array_agg(
              minutes_to_time(range_start) || '-' || minutes_to_time(range_end)
@@ -350,23 +361,25 @@ WITH ordered_data AS (
     FROM ranges
     GROUP BY pc_id
 )
+-- activity_counts と formatted を結合して結果を返す
 SELECT a.pc_id, a.activity_count, f.time_ranges
 FROM activity_counts a
 JOIN formatted f ON a.pc_id = f.pc_id;
 $$ LANGUAGE SQL;
-```
+````
 
-*説明：対象ユーザーの各PCごとに、利用記録の連続した時間帯と総利用回数を集計して返します。*
+#### 2.6 連続活動レコードを挿入する関数: **insert_continuous_activity**
 
-### 3.5 連続した活動レコードを挿入する関数
-
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【insert_continuous_activity 関数】
+-- 指定された期間（start_time～end_time, "HH:MM" 形式）において、
+-- 1 分間隔の活動レコードを自動生成して挿入します。
 CREATE OR REPLACE FUNCTION insert_continuous_activity(
     target_user_id UUID,
     target_pc_id UUID,
-    start_time TEXT,  -- 'HH:MM' 形式 (例: '09:30')
-    end_time TEXT,    -- 'HH:MM' 形式 (例: '10:45')
-    target_date DATE  -- 'YYYY-MM-DD' 形式
+    start_time TEXT,  -- 開始時刻 ("HH:MM" 形式)
+    end_time TEXT,    -- 終了時刻 ("HH:MM" 形式)
+    target_date DATE  -- 対象日付 (YYYY-MM-DD 形式)
 )
 RETURNS INTEGER AS $$
 DECLARE
@@ -374,37 +387,41 @@ DECLARE
     end_minutes INTEGER;
     inserted_count INTEGER;
 BEGIN
-    -- 時刻を分単位に変換
+    -- 開始時刻と終了時刻を「分」に変換
     start_minutes := (EXTRACT(HOUR FROM start_time::TIME) * 60 + EXTRACT(MINUTE FROM start_time::TIME))::INTEGER;
     end_minutes := (EXTRACT(HOUR FROM end_time::TIME) * 60 + EXTRACT(MINUTE FROM end_time::TIME))::INTEGER;
     
-    -- 指定範囲の連続レコードを挿入
+    -- generate_series を用いて、指定範囲内の各分を生成しレコードを挿入
     WITH minutes AS (
         SELECT generate_series(start_minutes, end_minutes) AS minute
     )
     INSERT INTO pc_activity_2 (
         pc_id,
         user_id,
-        created_at_jst
+        created_at_jst  -- 作成時刻（JST）：トリガーで他のカラムが補完される
     )
     SELECT 
         target_pc_id,
         target_user_id,
+        -- 対象日付に、各分数分の時間を足す
         target_date + (minute * INTERVAL '1 minute') + (start_time::TIME - (start_minutes * INTERVAL '1 minute'))
     FROM minutes;
     
+    -- 挿入された行数を取得
     GET DIAGNOSTICS inserted_count = ROW_COUNT;
-    RETURN inserted_count;
+    RETURN inserted_count;  -- 挿入されたレコード数を返す
 END;
 $$ LANGUAGE plpgsql;
-```
+````
 
-*説明：指定した時刻範囲内で、1分間隔の活動レコードを自動生成して挿入します。*
+#### 2.7 その他の補助関数
 
-### 3.6 その他の補助関数
+##### 2.7.1 **update_jst_timestamp**
 
-#### 3.6.1 update_jst_timestamp
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【update_jst_timestamp 関数】
+-- レコードの挿入または更新時に、UTC のタイムスタンプ (created_at) から
+-- JST の時刻 (created_at_jst) を計算して設定するトリガー関数です。
 CREATE OR REPLACE FUNCTION update_jst_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -412,15 +429,13 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-```
+````
 
-*説明：レコードの挿入または更新時に、UTCのタイムスタンプからJSTへの変換を行います。*
+##### 2.7.2 **get_pc_name**
 
----
-
-## 3.7 pc_name 取得用関数
-
-```sql:doc/SQL_text.md
+````sql:doc/SQL_text.md
+-- 【get_pc_name 関数】
+-- 指定された PC ID に対応する PC 名を user_pcs テーブルから取得して返します。
 CREATE OR REPLACE FUNCTION get_pc_name(p_pc_id UUID)
 RETURNS TEXT AS $$
 DECLARE
@@ -433,30 +448,31 @@ BEGIN
     RETURN v_pc_name;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+````
 
--- 使用例:
--- SELECT get_pc_name('your-pc-id-uuid-here');
-```
+---
 
+### 3. トリガーの作成
 
-## 4. トリガーの作成
-
-```sql:doc/SQL_text.md
--- pc_activity_2テーブル挿入時に分計算用関数を呼び出すトリガー作成
+````sql:doc/SQL_text.md
+-- 【トリガー set_minutes_time_jst】
+-- pc_activity_2 テーブルにレコード挿入時、calculate_minutes_time_jst 関数を
+-- 呼び出して created_at_jst から利用時間（分）を自動計算します。
 CREATE TRIGGER set_minutes_time_jst
     BEFORE INSERT ON pc_activity_2
     FOR EACH ROW
     EXECUTE FUNCTION calculate_minutes_time_jst();
-```
+````
 
 ---
 
-## 5. 使用例
+### 4. 使用例
 
-### 5.1 利用レコードの挿入例
+#### 4.1 利用レコード挿入例
 
-```sql:doc/SQL_text.md
--- シンプルな挿入例（minutes_time_jstは自動計算）
+````sql:doc/SQL_text.md
+-- 簡単な挿入例
+-- pc_id と user_id を指定し、その他の値はデフォルト値で自動設定されます。
 INSERT INTO pc_activity_2 (
     pc_id,
     user_id
@@ -465,7 +481,7 @@ INSERT INTO pc_activity_2 (
     'user-123e4567-e89b-12d3-a456-111111111111'::uuid
 );
 
--- 特定の時刻を指定して挿入する場合
+-- 特定の時刻（JST）を指定して挿入する例
 INSERT INTO pc_activity_2 (
     pc_id,
     user_id,
@@ -475,18 +491,18 @@ INSERT INTO pc_activity_2 (
     'user-123e4567-e89b-12d3-a456-111111111111'::uuid,
     '2024-02-15 09:30:00 JST'
 );
-```
+````
 
-### 5.2 活動記録・視聴時間の集計例
+#### 4.2 活動記録・視聴時間の集計例
 
-```sql:doc/SQL_text.md
--- 特定ユーザーの2024-02-15の日付における活動数を取得
+````sql:doc/SQL_text.md
+-- 特定ユーザーの 2024-02-15 の活動回数を集計する例
 SELECT * FROM get_daily_activity_count(
     'user-123e4567-e89b-12d3-a456-111111111111'::uuid,
     '2024-02-15'
 );
 
--- 連続活動レコードを生成する例
+-- 連続活動レコードを自動生成して挿入する例
 SELECT insert_continuous_activity(
     'user-123e4567-e89b-12d3-a456-111111111111'::uuid,
     '123e4567-e89b-12d3-a456-426614174000'::uuid,
@@ -494,29 +510,18 @@ SELECT insert_continuous_activity(
     '10:45',
     '2024-02-15'
 );
-```
+````
 
-### 5.3 視聴時間の解析例
+#### 4.3 視聴時間の解析例
 
-```sql:doc/SQL_text.md
--- 合計視聴時間と実利用時間の差分を取得する例
+````sql:doc/SQL_text.md
+-- 合計視聴時間と実際の活動時間との差分を解析する例
 SELECT * FROM analyze_time_difference(
     'user-123e4567-e89b-12d3-a456-111111111111'::uuid,
     '2024-02-15'
 );
-```
+````
 
 ---
 
-## 補足
-
-- 本ドキュメントに記載のSQL定義は Supabase 上の PostgreSQL 環境を前提としています。  
-- `created_at_jst` の値は、デフォルト指定やトリガー機能（calculate_minutes_time_jst、update_jst_timestamp）によって自動計算されます。  
-- 各関数の使用例は、CLIツール（例：sclog.py）や Web クライアント（例：sc_time_viewer_8.html）から呼び出され、実際の集計・解析処理で利用されます。
-
----
-
-以上が、実際の使い方や各定義の出力内容を反映した最新の **SQL_text.md** の内容例です。
-``` 
-
-この修正例は、各テーブルや関数の定義、トリガーの作成、そして利用例を包括的にまとめ、実際の運用に沿った内容となっています。必要に応じて、お使いの環境や最新の定義に合わせてさらに微調整してください。
+以上のように、各 SQL の定義部分に対して、処理内容や意図が分かりやすい適切なコメントを適宜追加しました。各コードブロックのコメントは、特に後からコードを確認する場合や他メンバーとの共有時に、理解しやすくなることを目的としています。

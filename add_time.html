@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>PC視聴時間管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -117,17 +118,59 @@
   </div>
 
   <script>
-    // URLのGETパラメータで"user_id"が指定されていればそれを使用、なければデフォルトのUSER_IDを利用
-    const urlParams = new URLSearchParams(window.location.search);
-    const SUPABASE_PROJECT_ID = urlParams.get('project_id') || 'xalrqqutkxzwzvahqpjg';
+    // グローバル変数として Supabase の URL は既に定義されている前提です
+    const SUPABASE_PROJECT_ID = 'xalrqqutkxzwzvahqpjg';
     const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
-    const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
-    const USER_ID = urlParams.get('user_id') || '616bd16a-d9c1-4c41-8b96-414646d6d218';
-    const HEADERS = {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json'
+
+    // HEADERS をグローバル変数として宣言しておく
+    let HEADERS;
+    let supabaseClient;
+    let USER_ID = null;
+
+    window.onload = function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+
+      // HEADERS を設定
+      HEADERS = {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY
+      };
+
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true
+        }
+      });
+
+      // 初期化を実行
+      initializeWithSession();
     };
+
+    // セッションチェックと初期化
+    async function initializeWithSession() {
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        if (!session) {
+          window.location.href = 'auth_test_login.html';
+          return;
+        }
+
+        USER_ID = session.user.id;
+        // データ取得を開始
+        await displayPCInfo();
+        await displayTimeLog();
+
+      } catch (error) {
+        console.error('セッション初期化エラー:', error);
+        window.location.href = 'auth_test_login.html';
+      }
+    }
 
     // 今日の日付を取得（JST）
     function getTodayJST() {
@@ -176,7 +219,7 @@
           current = { ...range };
           continue;
         }
-        
+
         if (range.start <= current.end) {
           current.end = Math.max(current.end, range.end);
         } else {
@@ -192,7 +235,7 @@
       return merged;
     }
 
-    // PC名を取得する（sc_time_viewer_8.htmlにある実装をそのまま利用）
+    // PC名を取得する関数
     async function getPcName(pcId) {
       const requestBody = { p_pc_id: pcId };
       try {
@@ -215,7 +258,7 @@
       }
     }
 
-    // displayAnalysisSummary 関数の定義
+    // 分析サマリー表示用の関数
     async function displayAnalysisSummary() {
       try {
         const today = getTodayJST();
@@ -274,7 +317,7 @@
           document.querySelector('.card').insertBefore(summaryElement, document.querySelector('.time-adjust'));
         }
 
-        // 許可時間と利用時間の両方を表示（sc_time_viewer_8.html と同様）
+        // 許可時間と利用時間の両方を表示
         summaryElement.innerHTML = `
           許可: ${totalData.total_time || 0}分 (追加: ${totalData.total_added_minutes || 0}分, ベース: ${totalData.default_time || 0}分)
           <br>
@@ -284,7 +327,8 @@
         console.error('分析サマリー取得エラー:', error);
       }
     }
-    // 修正済：PCごとの情報を表示するための関数 displayPCInfo 
+
+    // PCごとの情報を表示する関数
     async function displayPCInfo() {
       try {
         const today = getTodayJST();
@@ -341,7 +385,7 @@
       }
     }
 
-    // displayTimeLog 関数（修正後）
+    // 時間調整ログを表示する関数
     async function displayTimeLog() {
       try {
         const today = getTodayJST();
@@ -377,12 +421,13 @@
           logElement.textContent = `${time}　　${log.added_minutes}分追加`;
           logListElement.appendChild(logElement);
         });
+        
       } catch (error) {
         console.error('Error:', error);
       }
     }
 
-    // 時間調整を送信
+    // 時間調整を送信する関数
     async function submitTimeAdjustment() {
       const minutes = parseInt(document.getElementById('minutesInput').value);
       if (isNaN(minutes)) {
@@ -427,10 +472,6 @@
 
     // イベントリスナーの設定
     document.getElementById('submitButton').addEventListener('click', submitTimeAdjustment);
-
-    // 初期表示
-    displayPCInfo();
-    displayTimeLog();
   </script>
 </body>
 </html>

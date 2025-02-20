@@ -99,7 +99,9 @@
       font-size: 0.8em;
       color: #666;
       padding-right: 5px;
-      transform: translateY(-50%); /* センタリング調整 */
+      height: 20px;
+      margin-top: -10px; /* 高さの半分を負のマージンで設定 */
+      line-height: 20px;
       z-index: 1;
     }
     /* マーカーに対応する水平線 */
@@ -154,7 +156,7 @@
       background: #f8f8f8;
       padding: 4px;
       border-radius: 4px;
-      height: 500px; /* グラフエリアの高さを調整 */
+      height: 100%; /* 変更前: 500px → 変更後: 100%（親要素 day-content の高さ 600px に合わせる） */
       width: 90px;
     }
     .loading, .error {
@@ -223,9 +225,9 @@
     });
 
     let USER_ID = null;
-    // 表示の定数：開始・終了時間
-    const DISPLAY_START_HOUR = 5; // 5:00 から
-    const DISPLAY_END_HOUR = 23; // 23:59 まで
+    // 表示の定数：開始・終了時間を0-24時に変更
+    const DISPLAY_START_HOUR = 0; // 0:00 から
+    const DISPLAY_END_HOUR = 24; // 24:00 まで
 
     // セッションチェックと初期化
     async function initializeWithSession() {
@@ -325,89 +327,91 @@
       return merged;
     }
     
-    // 新たなタイムライン描画関数：時間帯文字列の配列から描画
-    function createTimelineFromRanges(pcName, timeRanges, activityCount, isTotal = false) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'timeline-wrapper';
-      
-      const pcInfo = document.createElement('div');
-      pcInfo.className = 'pc-info';
-      
-      const title = document.createElement('h2');
-      title.className = 'pc-title';
-      title.textContent = isTotal ? '総視聴時間' : pcName;
-      title.title = title.textContent;
-      pcInfo.appendChild(title);
-      
-      const totalMins = document.createElement('div');
-      totalMins.className = 'total-minutes';
-      totalMins.textContent = `${activityCount}分`;
-      pcInfo.appendChild(totalMins);
-      
-      wrapper.appendChild(pcInfo);
-      
-      const timeline = document.createElement('div');
-      timeline.className = `timeline ${isTotal ? 'total-usage' : ''}`;
-      
-      // 表示時間範囲の定義を統一
-      const startMargin = getMinutesFromTime(DISPLAY_START_HOUR, 0);
-      const endMargin = getMinutesFromTime(DISPLAY_END_HOUR, 59);
-      const totalRange = endMargin - startMargin;
-      
-      timeRanges.forEach(rangeStr => {
-        const { start, end } = parseTimeRange(rangeStr);
-        // 表示可能な時間帯内のみ描画
-        if (end < startMargin || start > endMargin) return;
-        
-        // 表示範囲内に収める
-        const adjustedStart = Math.max(start, startMargin);
-        const adjustedEnd = Math.min(end, endMargin);
-        
-        const segDiv = document.createElement('div');
-        segDiv.className = 'time-segment';
-        
-        // 位置計算を修正（開始値をstartMarginから引く）
-        const topPercent = ((adjustedStart - startMargin) / totalRange) * 100;
-        const heightPercent = ((adjustedEnd - adjustedStart) / totalRange) * 100;
-        
-        segDiv.style.top = `${topPercent}%`;
-        segDiv.style.height = `${heightPercent}%`;
-        segDiv.style.backgroundColor = isTotal ? '#22c55e' : '#2563eb';
-        segDiv.title = `${getTimeString(start)} - ${getTimeString(end)}`;
-        
-        timeline.appendChild(segDiv);
-      });
-      
-      wrapper.appendChild(timeline);
-      return wrapper;
-    }
-    
     // タイムマーカー生成
     function createTimeMarkers() {
       const container = document.createElement('div');
       container.className = 'time-markers';
       
-      const startMinutes = getMinutesFromTime(DISPLAY_START_HOUR, 0);
-      const endMinutes = getMinutesFromTime(DISPLAY_END_HOUR, 59);
-      const totalRange = endMinutes - startMinutes;
+      // 表示範囲の定義（0:00-24:00）
+      const totalMinutes = 24 * 60;  // 1日の総分数
       
-      // 主要な時間（5, 8, 11, 14, 17, 20, 23時）を表示
-      const markerHours = [5, 8, 11, 14, 17, 20, 23];
-      
-      markerHours.forEach(hour => {
-        const minutes = hour * 60;
+      // 1時間ごとにマーカーを表示
+      for (let hour = 0; hour <= 24; hour++) {
         const marker = document.createElement('div');
         marker.className = 'time-marker';
         
-        // 位置計算（開始値をstartMarginから引く）
-        const topPercent = ((minutes - startMinutes) / totalRange) * 100;
+        // 位置計算をシンプルに（1時間 = 4.166...%）
+        const topPercent = (hour / 24) * 100;
         marker.style.top = `${topPercent}%`;
         marker.textContent = `${hour.toString().padStart(2, '0')}:00`;
         
         container.appendChild(marker);
-      });
+      }
       
       return container;
+    }
+    
+    // 新たなタイムライン描画関数：時間帯文字列の配列から描画
+    function createTimelineFromRanges(pcName, timeRanges, activityCount, isTotal = false) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'timeline-wrapper';
+      // wrapperを相対位置にして、内部の絶対配置要素の基準にする
+      wrapper.style.position = 'relative';
+
+      // 以下、グラフのレイアウトに影響しないように、
+      // PC情報を別レイヤ（class1構成）として絶対配置します。
+      const pcInfo = document.createElement('div');
+      // 必要に応じてCSSで「.pc-info.class1」のスタイルも定義可能（ここではインラインスタイル）
+      pcInfo.className = 'pc-info class1';
+      pcInfo.style.position = 'absolute';
+      pcInfo.style.top = '0';
+      pcInfo.style.left = '0';
+      pcInfo.style.width = '100%';
+      pcInfo.style.height = '40px';
+      // ユーザー操作等に干渉しないように（必要なら）
+      pcInfo.style.pointerEvents = 'none';
+      pcInfo.style.zIndex = '1';
+
+      const title = document.createElement('h2');
+      title.className = 'pc-title';
+      title.textContent = isTotal ? '総視聴時間' : pcName;
+      title.title = title.textContent;
+
+      const totalMins = document.createElement('div');
+      totalMins.className = 'total-minutes';
+      totalMins.textContent = `${activityCount}分`;
+
+      // PC情報を絶対配置のコンテナに追加
+      pcInfo.appendChild(title);
+      pcInfo.appendChild(totalMins);
+      // ここでwrapper内に追加しますが、絶対配置のためグラフ位置の計算には影響しません
+      wrapper.appendChild(pcInfo);
+
+      // タイムライン本体（グラフ）の作成
+      const timeline = document.createElement('div');
+      timeline.className = `timeline ${isTotal ? 'total-usage' : ''}`;
+      timeline.style.position = 'relative'; // 通常表示
+      // ※ このタイムラインは day-content 内の固定高さ（例：600px）にフィットする前提です
+
+      // タイムラインに時間帯セグメントを追加（位置計算は0時～24時の割合で実施）
+      timeRanges.forEach(rangeStr => {
+        const { start, end } = parseTimeRange(rangeStr);
+        const segDiv = document.createElement('div');
+        segDiv.className = 'time-segment';
+        const topPercent = (start / (24 * 60)) * 100;
+        const heightPercent = ((end - start) / (24 * 60)) * 100;
+        segDiv.style.top = `${topPercent}%`;
+        segDiv.style.height = `${heightPercent}%`;
+        segDiv.style.left = '4px';
+        segDiv.style.right = '4px';
+        segDiv.style.backgroundColor = isTotal ? '#22c55e' : '#2563eb';
+        segDiv.title = `${getTimeString(start)} - ${getTimeString(end)}`;
+        timeline.appendChild(segDiv);
+      });
+
+      wrapper.appendChild(timeline);
+
+      return wrapper;
     }
     
     // 日付を YYYY-MM-DD 形式に

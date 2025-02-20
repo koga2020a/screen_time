@@ -185,6 +185,25 @@
     .time-segment:hover {
       opacity: 0.8;
     }
+    /* モーダルウィンドウのスタイル */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 10;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 300px;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -194,17 +213,35 @@
   <div id="commonHeader"></div>
   <script src="common-header.js"></script>
   <div class="card">
-    <!-- 上部：日付選択 -->
+    <!-- 上部：日付選択＋設定ボタン -->
     <div class="date-controls-wrapper">
       <div class="date-controls">
         <button id="prevDate" class="arrow-button">&#8592;</button>
         <input type="date" id="datePicker" class="date-picker">
         <button id="nextDate" class="arrow-button">&#8594;</button>
+        <button id="openSettings" class="arrow-button">設定</button>
       </div>
     </div>
     <!-- 各日のセット（左から：2日前、1日前、今日） -->
     <div id="setsContainer" class="sets-container">
       <!-- 各日セットはJSで生成 -->
+    </div>
+  </div>
+
+  <!-- モーダル（設定画面） -->
+  <div id="settingsModal" class="modal">
+    <div class="modal-content">
+      <h3>グラフ表示設定</h3>
+      <label>
+        開始時刻: <input type="number" id="displayStartHour" min="0" max="23">:00
+      </label>
+      <br>
+      <label>
+        終了時刻: <input type="number" id="displayEndHour" min="1" max="24">:00
+      </label>
+      <br><br>
+      <button id="saveSettings">保存</button>
+      <button id="cancelSettings">キャンセル</button>
     </div>
   </div>
 
@@ -225,9 +262,6 @@
     });
 
     let USER_ID = null;
-    // 表示の定数：開始・終了時間を0-24時に変更
-    const DISPLAY_START_HOUR = 0; // 0:00 から
-    const DISPLAY_END_HOUR = 24; // 24:00 まで
 
     // セッションチェックと初期化
     async function initializeWithSession() {
@@ -327,48 +361,53 @@
       return merged;
     }
     
-    // タイムマーカー生成
+    // グラフ表示時間設定をLocalStorageから取得（デフォルトは5:00～23:00）
+    function getDisplayHours() {
+      const stored = localStorage.getItem('graphDisplayHours');
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          if (typeof data.startHour === 'number' && typeof data.endHour === 'number') {
+            return data;
+          }
+        } catch(e) {}
+      }
+      return { startHour: 5, endHour: 23 };
+    }
+    
+    // タイムマーカー生成（localStorage の設定に基づく）
     function createTimeMarkers() {
+      const { startHour, endHour } = getDisplayHours();
       const container = document.createElement('div');
       container.className = 'time-markers';
-      
-      // 表示範囲の定義（0:00-24:00）
-      const totalMinutes = 24 * 60;  // 1日の総分数
-      
-      // 1時間ごとにマーカーを表示
-      for (let hour = 0; hour <= 24; hour++) {
+      const startMinutes = startHour * 60;
+      const endMinutes = endHour * 60;
+      const totalMinutes = endMinutes - startMinutes;
+      for (let hour = startHour; hour <= endHour; hour++) {
         const marker = document.createElement('div');
         marker.className = 'time-marker';
-        
-        // 位置計算をシンプルに（1時間 = 4.166...%）
-        const topPercent = (hour / 24) * 100;
+        const topPercent = (((hour * 60) - startMinutes) / totalMinutes) * 100;
         marker.style.top = `${topPercent}%`;
         marker.textContent = `${hour.toString().padStart(2, '0')}:00`;
-        
         container.appendChild(marker);
       }
-      
       return container;
     }
     
-    // 新たなタイムライン描画関数：時間帯文字列の配列から描画
+    // タイムライン描画（localStorage の設定に基づく）
     function createTimelineFromRanges(pcName, timeRanges, activityCount, isTotal = false) {
       const wrapper = document.createElement('div');
       wrapper.className = 'timeline-wrapper';
-      // wrapperを相対位置にして、内部の絶対配置要素の基準にする
       wrapper.style.position = 'relative';
 
-      // 以下、グラフのレイアウトに影響しないように、
-      // PC情報を別レイヤ（class1構成）として絶対配置します。
+      // グラフ表示に影響しないよう、PC情報は絶対配置（class1構成）
       const pcInfo = document.createElement('div');
-      // 必要に応じてCSSで「.pc-info.class1」のスタイルも定義可能（ここではインラインスタイル）
       pcInfo.className = 'pc-info class1';
       pcInfo.style.position = 'absolute';
       pcInfo.style.top = '0';
       pcInfo.style.left = '0';
       pcInfo.style.width = '100%';
       pcInfo.style.height = '40px';
-      // ユーザー操作等に干渉しないように（必要なら）
       pcInfo.style.pointerEvents = 'none';
       pcInfo.style.zIndex = '1';
 
@@ -381,25 +420,29 @@
       totalMins.className = 'total-minutes';
       totalMins.textContent = `${activityCount}分`;
 
-      // PC情報を絶対配置のコンテナに追加
       pcInfo.appendChild(title);
       pcInfo.appendChild(totalMins);
-      // ここでwrapper内に追加しますが、絶対配置のためグラフ位置の計算には影響しません
       wrapper.appendChild(pcInfo);
 
-      // タイムライン本体（グラフ）の作成
       const timeline = document.createElement('div');
       timeline.className = `timeline ${isTotal ? 'total-usage' : ''}`;
-      timeline.style.position = 'relative'; // 通常表示
-      // ※ このタイムラインは day-content 内の固定高さ（例：600px）にフィットする前提です
+      timeline.style.position = 'relative';
 
-      // タイムラインに時間帯セグメントを追加（位置計算は0時～24時の割合で実施）
+      const { startHour, endHour } = getDisplayHours();
+      const startMinutes = startHour * 60;
+      const endMinutes = endHour * 60;
+      const totalMinutes = endMinutes - startMinutes;
+
       timeRanges.forEach(rangeStr => {
         const { start, end } = parseTimeRange(rangeStr);
+        if (end <= startMinutes || start >= endMinutes) return;
+        const adjustedStart = Math.max(start, startMinutes);
+        const adjustedEnd = Math.min(end, endMinutes);
+
         const segDiv = document.createElement('div');
         segDiv.className = 'time-segment';
-        const topPercent = (start / (24 * 60)) * 100;
-        const heightPercent = ((end - start) / (24 * 60)) * 100;
+        const topPercent = ((adjustedStart - startMinutes) / totalMinutes) * 100;
+        const heightPercent = ((adjustedEnd - adjustedStart) / totalMinutes) * 100;
         segDiv.style.top = `${topPercent}%`;
         segDiv.style.height = `${heightPercent}%`;
         segDiv.style.left = '4px';
@@ -410,7 +453,6 @@
       });
 
       wrapper.appendChild(timeline);
-
       return wrapper;
     }
     
@@ -621,6 +663,31 @@
         return pcId; // エラーの場合はIDを返す
       }
     }
+    
+    // モーダルのオープン・クローズおよび設定保存処理
+    document.getElementById('openSettings').addEventListener('click', () => {
+      const { startHour, endHour } = getDisplayHours();
+      document.getElementById('displayStartHour').value = startHour;
+      document.getElementById('displayEndHour').value = endHour;
+      document.getElementById('settingsModal').style.display = 'block';
+    });
+    
+    document.getElementById('cancelSettings').addEventListener('click', () => {
+      document.getElementById('settingsModal').style.display = 'none';
+    });
+    
+    document.getElementById('saveSettings').addEventListener('click', () => {
+      const startHour = parseInt(document.getElementById('displayStartHour').value, 10);
+      const endHour = parseInt(document.getElementById('displayEndHour').value, 10);
+      if (isNaN(startHour) || isNaN(endHour) || startHour < 0 || endHour > 24 || startHour >= endHour) {
+        alert('正しい時刻範囲を指定してください。');
+        return;
+      }
+      const newSettings = { startHour, endHour };
+      localStorage.setItem('graphDisplayHours', JSON.stringify(newSettings));
+      document.getElementById('settingsModal').style.display = 'none';
+      fetchAndRenderAllDays();
+    });
     
     // 初期化を実行
     initializeWithSession();

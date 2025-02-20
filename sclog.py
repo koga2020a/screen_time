@@ -61,17 +61,24 @@ def get_pc_name_from_pc_id(user_id, pc_id):
     user_pcs から pc_id に対応する pc_name を取得して返す。
     該当がなければ None を返す。
     """
-    url = (
-        f"{SUPABASE_URL}/rest/v1/user_pcs"
-        f"?user_id=eq.{user_id}&pc_id=eq.{pc_id}&select=pc_name"
-    )
-    response = requests.get(url, headers=HEADERS)
-    if not response.text.strip():
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_pc_name_by_user"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id,
+            "p_pc_id": pc_id
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return None
+            
+        if not response.text.strip():
+            return None
+            
+        return response.text.strip('"')  # Supabaseは文字列を引用符付きで返すため、それを除去
+    except Exception:
         return None
-    data = response.json()
-    if not data:
-        return None
-    return data[0]["pc_name"]
 
 def check_user_exists(user_id):
     """users_watch_time テーブルに指定された user_id が存在するか確認します。"""

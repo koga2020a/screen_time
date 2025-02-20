@@ -197,3 +197,39 @@ BEGIN
     RETURN insert_continuous_activity(target_user_id, target_pc_id, start_time, end_time, target_date);
 END;
 $$ LANGUAGE plpgsql;
+
+
+## api_key を使用した版のみ用意されている関数
+
+-------------------------------
+-- 10. pc_name を取得する関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_pc_name_by_user(
+    p_api_key TEXT,
+    p_user_id UUID,
+    p_pc_id UUID
+)
+RETURNS TEXT AS $$
+DECLARE
+    is_valid BOOLEAN;
+    v_pc_name TEXT;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    -- pc_name の取得
+    SELECT user_pcs.pc_name INTO v_pc_name
+    FROM user_pcs
+    WHERE user_pcs.user_id = p_user_id AND user_pcs.pc_id = p_pc_id;
+
+    -- 取得できなかった場合の処理
+    IF v_pc_name IS NULL THEN
+        RAISE EXCEPTION 'No matching PC found for user_id % and pc_id %', p_user_id, p_pc_id;
+    END IF;
+
+    RETURN v_pc_name;
+END;
+$$ LANGUAGE plpgsql;

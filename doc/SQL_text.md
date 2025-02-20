@@ -1,4 +1,21 @@
 
+| 関数名                         | 引数                                                                                                                                       | 内部で利用しているテーブル                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| **minutes_to_time**            | `minutes INTEGER`                                                                                                                          | なし                                                                      |
+| **append_pc_activity**         | `p_pc_id UUID, p_user_id UUID, p_minutes int[]`                                                                                            | なし<br>※内部では `unnest()` を用いて配列を展開しているだけ                    |
+| **delete_pc_activity**         | `p_pc_id UUID, p_user_id UUID, p_minutes int[]`                                                                                            | `pc_activity_2`                                                           |
+| **get_total_watch_time**       | `target_user_id UUID, target_date DATE`                                                                                                   | `watch_time_log`<br>`users_watch_time`                                      |
+| **get_daily_activity_count**   | `target_user_id UUID, target_date DATE`                                                                                                   | `pc_activity_2`                                                           |
+| **analyze_time_difference**    | `target_user_id UUID, target_date DATE`                                                                                                   | `pc_activity_2`<br>※また、内部で `get_total_watch_time` を利用しており、間接的に `watch_time_log` と `users_watch_time` も参照 |
+| **get_time_ranges_by_pc**       | `target_user_id UUID, target_pc_id UUID, target_date DATE`                                                                                 | `pc_activity_2`                                                           |
+| **get_time_ranges_by_user**     | `target_user_id UUID, target_date DATE`                                                                                                   | `pc_activity_2`                                                           |
+| **insert_continuous_activity** | `target_user_id UUID, target_pc_id UUID, start_time TEXT, end_time TEXT, target_date DATE`                                                   | なし<br>※`generate_series` などの関数を利用しているが、データベーステーブルへの直接の SELECT は無し |
+| **update_jst_timestamp**       | （引数なし・トリガー関数として呼び出される）                                                                                              | なし                                                                      |
+| **get_pc_name**                | `p_pc_id UUID`                                                                                                                             | `user_pcs`                                                                |
+
+
+
+
 ### 1. テーブルの作成
 
 #### 1.1 **pc_activity_2** テーブル

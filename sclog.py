@@ -14,6 +14,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
+USER_API_KEY = os.getenv("USER_API_KEY")  # 追加: ユーザーのAPI key
 
 HEADERS = {
     "apikey": SUPABASE_API_KEY,
@@ -458,6 +459,7 @@ def is_able_watch(user_id, return_result=False):
       - Supabase の RPC を利用して、ストアドファンクション analyze_time_difference(target_user_id, target_date) を呼び出します。
       - ターゲットの日付は JST (YYYY-MM-DD形式) を用います。
       - analyze_time_difference の戻り値の time_difference が 0 以下なら視聴可能、0 より大きければ超過と判断します。
+      - API keyが無効な場合はエラー('E')を返します。
     """
     try:
         # JST の当日の日付 (YYYY-MM-DD形式) を取得
@@ -467,27 +469,40 @@ def is_able_watch(user_id, return_result=False):
         # Supabase RPC 呼び出し URL (analyze_time_difference を利用)
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/analyze_time_difference"
         payload = {
+            "p_api_key": api_key,
             "target_user_id": user_id,
             "target_date": target_date
         }
         response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        # エラーレスポンスのチェック
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            result = "E"
+            return result if return_result else print(result)
+            
         data = response.json() if response.text.strip() else None
 
-        if not data or "time_difference" not in data[0]:
+        if not data or len(data) == 0 or "time_difference" not in data[0]:
             result = "E"
             return result if return_result else print(result)
         
         row = data[0]
-        # analyze_time_difference の戻り値: unique_minutes_count, total_watch_time, time_difference
         time_difference = row["time_difference"]
         
-        # 使用時間が設定内なら time_difference <= 0  → 'T'、超過なら 'F'
         result = "T" if time_difference <= 0 else "F"
-    except Exception:
+    except Exception as e:
+        print(f"Error: {str(e)}")  # デバッグ用
         result = "E"
     return result if return_result else print(result)
 
 def main():
+    # グローバルオプションとしてapi-keyを設定するための親パーサーを作成
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument(
+        "--api-key",
+        help="ユーザーのAPI key（省略時は環境変数 USER_API_KEY を使用）"
+    )
+
     parser = argparse.ArgumentParser(
         description=(
             "Screen Time Management CLI\n\n"
@@ -496,56 +511,59 @@ def main():
             "オプションで --output (-o) を指定すると、結果を指定されたファイルに出力します。\n"
             "エラー発生時は 'E'、視聴可能なら 'T'、超過していれば 'F' などの結果を返します。"
         ),
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
+        parents=[parent_parser]  # 親パーサーを継承
     )
+
     subparsers = parser.add_subparsers(title="コマンド", dest="command", required=True)
 
-    # log-pc-activity コマンド
+    # 各サブパーサーに親パーサーを継承させる
     parser_log_pc = subparsers.add_parser(
         "log-pc-activity",
-        help="指定したユーザとPC (UUIDまたはpc_name) を用いて、現在時刻を記録します。"
+        help="指定したユーザとPC (UUIDまたはpc_name) を用いて、現在時刻を記録します。",
+        parents=[parent_parser]
     )
     parser_log_pc.add_argument("user_id", help="ユーザID (UUID)")
     parser_log_pc.add_argument("pc_identifier", help="PC ID (UUID) もしくは user_pcs の pc_name")
     parser_log_pc.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # check-watch-time コマンド
     parser_check_watch = subparsers.add_parser(
         "check-watch-time",
-        help="ユーザの残り視聴可能時間を取得します。\n(ユーザの default_time + watch_time_log の合計 - 全PCの利用済み分数)"
+        help="ユーザの残り視聴可能時間を取得します。\n(ユーザの default_time + watch_time_log の合計 - 全PCの利用済み分数)",
+        parents=[parent_parser]
     )
     parser_check_watch.add_argument("user_id", help="ユーザID (UUID)")
     parser_check_watch.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # get-total-usage コマンド
     parser_total_usage = subparsers.add_parser(
         "get-total-usage",
-        help="当日の全PCでの利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。"
+        help="当日の全PCでの利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。",
+        parents=[parent_parser]
     )
     parser_total_usage.add_argument("user_id", help="ユーザID (UUID)")
     parser_total_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # get-pc-usage コマンド
     parser_pc_usage = subparsers.add_parser(
         "get-pc-usage",
-        help="指定したPC (UUIDまたはpc_name) の利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。"
+        help="指定したPC (UUIDまたはpc_name) の利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。",
+        parents=[parent_parser]
     )
     parser_pc_usage.add_argument("user_id", help="ユーザID (UUID)")
     parser_pc_usage.add_argument("pc_identifier", help="PC ID (UUID) もしくは user_pcs の pc_name")
     parser_pc_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # get-allowed-time コマンド
     parser_allowed_time = subparsers.add_parser(
         "get-allowed-time",
-        help="その日の視聴可能時間 (default_time + watch_time_log の合計) を取得します。"
+        help="その日の視聴可能時間 (default_time + watch_time_log の合計) を取得します。",
+        parents=[parent_parser]
     )
     parser_allowed_time.add_argument("user_id", help="ユーザID (UUID)")
     parser_allowed_time.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # check-usage コマンド
     parser_check_usage = subparsers.add_parser(
         "check-usage",
-        help="全PCの利用済み分数と視聴可能時間を比較し、範囲内か超過かを返します。"
+        help="全PCの利用済み分数と視聴可能時間を比較し、範囲内か超過かを返します。",
+        parents=[parent_parser]
     )
     parser_check_usage.add_argument("user_id", help="ユーザID (UUID)")
     parser_check_usage.add_argument(
@@ -570,27 +588,34 @@ def main():
     )
     parser_check_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # is-able-watch コマンド
     parser_is_able = subparsers.add_parser(
         "is-able-watch",
         help=(
             "全PCの実際利用分数とその日の設定視聴可能総分数（default_time + watch_time_logの合算）との差分を取得し、\n"
             "視聴可能なら 'T'（実利用が設定内）、超過なら 'F'、エラー発生時は 'E' を返します。"
-        )
+        ),
+        parents=[parent_parser]
     )
     parser_is_able.add_argument("user_id", help="ユーザID (UUID)")
     parser_is_able.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
-    # insert-watch-log コマンド
     parser_insert_watch = subparsers.add_parser(
         "insert-watch-log",
-        help="watch_time_log テーブルに added_minutes の値を挿入します。（正・負どちらも可能）"
+        help="watch_time_log テーブルに added_minutes の値を挿入します。（正・負どちらも可能）",
+        parents=[parent_parser]
     )
     parser_insert_watch.add_argument("user_id", help="ユーザID (UUID)")
     parser_insert_watch.add_argument("added_minutes", type=int, help="追加する分数（マイナス値も可）")
     parser_insert_watch.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
 
     args = parser.parse_args()
+    
+    # API keyの設定（コマンドライン引数 > 環境変数）
+    global api_key
+    api_key = args.api_key or USER_API_KEY
+    if not api_key:
+        print("エラー: API keyが指定されていません。--api-key オプションまたは環境変数 USER_API_KEY を設定してください。")
+        sys.exit(1)
 
     if args.command == "log-pc-activity":
         result = log_pc_activity(args.user_id, args.pc_identifier, return_result=True)

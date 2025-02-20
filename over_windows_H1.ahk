@@ -1,5 +1,6 @@
 global screenTimeDir := "c:\src\screen_time"
 global user_id := "616bd16a-d9c1-4c41-8b96-414646d6d218"
+global user_id_ApiKey := "AAA"
 ;global pc_id := "4e27bdfa-83f9-437f-a06b-0fc108c99039"  ; gam
 global pc_id := " 9e7ec6df-31af-4e88-ba60-66783d50bc08"  ; H1
 global isAbleWatchFile := screenTimeDir "\is_able_watch.txt"
@@ -39,8 +40,8 @@ MainLoop:
 return
 
 CheckFile:
-    Run, python %screenTimeDir%\sclog.py log-pc-activity %user_id% %pc_id%, , Hide
-    Run, python %screenTimeDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile%, , Hide
+    Run, python %screenTimeDir%\sclog.py log-pc-activity %user_id% %pc_id% --api-key %user_id_ApiKey%, , Hide
+    Run, python %screenTimeDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile% --api-key %user_id_ApiKey%, , Hide
     Sleep, 3000
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
@@ -71,7 +72,7 @@ CheckFile:
 return
 
 CheckWatchTime:
-    Run, python %screenTimeDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis , , Hide
+    Run, python %screenTimeDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis --api-key %user_id_ApiKey%, , Hide
     Sleep, 3000
 
     FileRead, watchTimeContent_giant, %scResultTimeFile%_giant

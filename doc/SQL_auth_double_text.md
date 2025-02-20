@@ -233,3 +233,32 @@ BEGIN
     RETURN v_pc_name;
 END;
 $$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 11. check_user_exists_by_api の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION check_user_exists_by_api(
+    p_api_key TEXT,
+    p_user_id UUID
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    is_valid BOOLEAN;
+    user_exists BOOLEAN;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    -- ユーザーの存在確認
+    SELECT EXISTS (
+        SELECT 1
+        FROM users_watch_time
+        WHERE users_watch_time.user_id = p_user_id
+    ) INTO user_exists;
+
+    RETURN user_exists;
+END;
+$$ LANGUAGE plpgsql;

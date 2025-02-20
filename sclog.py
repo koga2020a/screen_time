@@ -82,9 +82,23 @@ def get_pc_name_from_pc_id(user_id, pc_id):
 
 def check_user_exists(user_id):
     """users_watch_time テーブルに指定された user_id が存在するか確認します。"""
-    url = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=user_id"
-    response = requests.get(url, headers=HEADERS)
-    return bool(response.text.strip() and response.json())
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/check_user_exists_by_api"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return False
+            
+        if not response.text.strip():
+            return False
+            
+        return response.json()
+    except Exception:
+        return False
 
 def get_activity_time():
     """

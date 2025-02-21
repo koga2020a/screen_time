@@ -15,9 +15,19 @@
       <a href="set_use_time.html" style="color:white; margin-right:15px; text-decoration:none;">
         <i class="fas fa-keyboard"></i> PCアクティビティ登録
       </a>
-      <a href="add_time.html" style="color:white; text-decoration:none;">
+      <a href="add_time.html" style="color:white; margin-right:15px; text-decoration:none;">
         <i class="fas fa-clock"></i> PC視聴時間修正
       </a>
+      <div class="dropdown" style="display:inline-block; position:relative;">
+        <a href="#" style="color:white; text-decoration:none;">
+          <i class="fas fa-tools"></i> メンテナンス
+        </a>
+        <div class="dropdown-content" style="display:none; position:absolute; background:#2563eb; min-width:200px; box-shadow:0 8px 16px rgba(0,0,0,0.2); z-index:1; border-radius:4px; margin-top:5px;">
+          <a href="make_ahk_env.html" style="color:white; text-decoration:none; display:block; padding:10px;">
+            <i class="fas fa-wrench"></i> AHK環境構築
+          </a>
+        </div>
+      </div>
     </nav>
   </header>
   `;
@@ -70,6 +80,27 @@
     #commonHeader nav a:hover::after {
       height: 100%;
       opacity: 0.2;
+    }
+    
+    /* ドロップダウンメニューのスタイル */
+    .dropdown-content {
+      transition: visibility 0s, opacity 0.2s;
+      visibility: hidden;
+      opacity: 0;
+    }
+    
+    .dropdown:hover .dropdown-content {
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    .dropdown.show .dropdown-content {
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    .dropdown-content a:hover {
+      background: rgba(255,255,255,0.1);
     }
   `;
   document.head.appendChild(customStyle);
@@ -158,4 +189,49 @@
       loadSupabaseLibrary();
     }
   }
+
+  // ドロップダウンの動作制御を追加
+  document.addEventListener('DOMContentLoaded', () => {
+    const dropdown = document.querySelector('.dropdown');
+    const dropdownLink = dropdown.querySelector('a');
+    const dropdownContent = dropdown.querySelector('.dropdown-content');
+    let hoverTimeoutId;
+    let leaveTimeoutId;
+
+    // ホバーの処理
+    dropdown.addEventListener('mouseenter', () => {
+      if (leaveTimeoutId) {
+        clearTimeout(leaveTimeoutId);
+      }
+      hoverTimeoutId = setTimeout(() => {
+        dropdownContent.style.display = 'block';
+      }, 500); // 0.5秒後に表示
+    });
+
+    dropdown.addEventListener('mouseleave', () => {
+      if (hoverTimeoutId) {
+        clearTimeout(hoverTimeoutId);
+      }
+      leaveTimeoutId = setTimeout(() => {
+        dropdownContent.style.display = 'none';
+      }, 500); // 0.5秒後に非表示
+    });
+
+    // クリックの処理
+    dropdownLink.addEventListener('click', (e) => {
+      e.preventDefault(); // デフォルトの動作をキャンセル
+      if (dropdownContent.style.display === 'block') {
+        dropdownContent.style.display = 'none';
+      } else {
+        dropdownContent.style.display = 'block';
+      }
+    });
+
+    // ドロップダウン以外の場所をクリックした時の処理
+    document.addEventListener('click', (e) => {
+      if (!dropdown.contains(e.target)) {
+        dropdownContent.style.display = 'none';
+      }
+    });
+  });
 })();

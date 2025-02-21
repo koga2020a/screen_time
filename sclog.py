@@ -179,27 +179,18 @@ def check_watch_time(user_id, return_result=False):
     pc_activity_2 の利用状況から minutes_time_jst を元に重複しない利用分数を取得します。
     """
     try:
-        url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
-        response = requests.get(url_watch_time, headers=HEADERS)
-        watch_data = response.json() if response.text.strip() else []
-        if not watch_data:
+        # default_time の取得
+        default_time = get_default_time(user_id)
+        if default_time is None:
             result = json.dumps({"error": "User not found"}, ensure_ascii=False)
             return result if return_result else print(result)
-        default_time = watch_data[0]["default_time"]
 
         start, end = get_today_range_utc()
+        total_added_minutes = get_total_added_minutes(user_id, start, end)
+        total_allowed = default_time + total_added_minutes
+
         start_enc = urllib.parse.quote(start, safe="")
         end_enc = urllib.parse.quote(end, safe="")
-
-        url_watch_log = (
-            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
-            f"&select=added_minutes"
-        )
-        response = requests.get(url_watch_log, headers=HEADERS)
-        log_data = response.json() if response.text.strip() else []
-        total_added_minutes = sum(log["added_minutes"] for log in log_data)
-        total_allowed = default_time + total_added_minutes
 
         url_activity = (
             f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}"
@@ -223,31 +214,27 @@ def check_watch_time(user_id, return_result=False):
         result = "E"
     return result if return_result else print(result)
 
-def get_total_usage(user_id, return_result=False):
-    """
-    当日の全PCでの利用済み分数（重複は1分として）と、その分数を HH:MM 形式のリストを取得します。
-    利用状況はpc_activity_2テーブルの minutes_time_jst を参照します。
-    """
+def get_total_usage_minutes(user_id, start_time, end_time, return_result=False):
+    """指定された期間の利用済み分数（重複を除く）を取得します。"""
     try:
-        start, end = get_today_range_utc()
-        start_enc = urllib.parse.quote(start, safe="")
-        end_enc = urllib.parse.quote(end, safe="")
-        url = f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}" \
-              f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=minutes_time_jst"
-        response = requests.get(url, headers=HEADERS)
-        data = response.json() if response.text.strip() else []
-        unique_minutes = {row["minutes_time_jst"] for row in data}
-        total_usage = len(unique_minutes)
-        usage_times = [f"{m // 60:02d}:{m % 60:02d}" for m in sorted(unique_minutes)]
-        res = {
-            "success": True,
-            "total_usage_minutes": total_usage,
-            "usage_times": usage_times
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_usage_minutes_by_api"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id,
+            "p_start_time": start_time,
+            "p_end_time": end_time
         }
-        result = json.dumps(res, ensure_ascii=False)
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return 0
+            
+        if not response.text.strip():
+            return 0
+            
+        return response.json()
     except Exception:
-        result = "E"
-    return result if return_result else print(result)
+        return 0
 
 def get_pc_usage(user_id, pc_identifier, return_result=False):
     """
@@ -291,13 +278,11 @@ def get_allowed_time(user_id, return_result=False):
     ユーザのその日の視聴可能時間（users_watch_time.default_time + watch_time_log の合計）を返します。
     """
     try:
-        url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
-        response = requests.get(url_watch_time, headers=HEADERS)
-        watch_data = response.json() if response.text.strip() else []
-        if not watch_data:
+        # default_time の取得
+        default_time = get_default_time(user_id)
+        if default_time is None:
             result = json.dumps({"error": "User not found"}, ensure_ascii=False)
             return result if return_result else print(result)
-        default_time = watch_data[0]["default_time"]
 
         start, end = get_today_range_utc()
         start_enc = urllib.parse.quote(start, safe="")
@@ -389,41 +374,19 @@ def check_usage(user_id, message_mode="normal", return_result=False):
         }
     """
     try:
-        # ユーザの基本視聴時間 (default_time) を取得
-        url_watch_time = f"{SUPABASE_URL}/rest/v1/users_watch_time?user_id=eq.{user_id}&select=default_time"
-        response = requests.get(url_watch_time, headers=HEADERS)
-        watch_data = response.json() if response.text.strip() else []
-        if not watch_data:
+        # default_time の取得
+        default_time = get_default_time(user_id)
+        if default_time is None:
             result = json.dumps({"error": "User not found"}, ensure_ascii=False)
             return result if return_result else print(result)
-        default_time = watch_data[0]["default_time"]
 
         # 当日のUTC範囲（JSTの日付に対応）を取得
         start, end = get_today_range_utc()
-        start_enc = urllib.parse.quote(start, safe="")
-        end_enc = urllib.parse.quote(end, safe="")
-
-        # watch_time_log から追加視聴時間の合計を取得
-        url_watch_log = (
-            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
-            f"&select=added_minutes"
-        )
-        response = requests.get(url_watch_log, headers=HEADERS)
-        log_data = response.json() if response.text.strip() else []
-        total_added_minutes = sum(item["added_minutes"] for item in log_data)
-
+        total_added_minutes = get_total_added_minutes(user_id, start, end)
         allowed_time = default_time + total_added_minutes
 
-        # pc_activity_2 から、当日の全PCの利用済み分数（重複は1分として）を取得
-        url_activity = (
-            f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
-            f"&select=minutes_time_jst"
-        )
-        response = requests.get(url_activity, headers=HEADERS)
-        activity_data = response.json() if response.text.strip() else []
-        total_usage = len({item["minutes_time_jst"] for item in activity_data})
+        # 利用済み分数の取得
+        total_usage = get_total_usage_minutes(user_id, start, end)
 
         difference = allowed_time - total_usage  # 正の値: 残り分数, 負の値: 超過分数
 
@@ -516,6 +479,48 @@ def is_able_watch(user_id, return_result=False):
         result = "E"
     return result if return_result else print(result)
 
+def get_default_time(user_id):
+    """users_watch_time テーブルから指定されたユーザーのdefault_timeを取得します。"""
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_default_time_by_api"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return None
+            
+        if not response.text.strip():
+            return None
+            
+        return response.json()
+    except Exception:
+        return None
+
+def get_total_added_minutes(user_id, start_time, end_time):
+    """指定された期間の追加視聴時間の合計を取得します。"""
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_added_minutes_by_api"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id,
+            "p_start_time": start_time,
+            "p_end_time": end_time
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return 0
+            
+        if not response.text.strip():
+            return 0
+            
+        return response.json()
+    except Exception:
+        return 0
+    
 def main():
     # グローバルオプションとしてapi-keyを設定するための親パーサーを作成
     parent_parser = argparse.ArgumentParser(add_help=False)
@@ -647,7 +652,8 @@ def main():
         output_result(result, args.output)
 
     elif args.command == "get-total-usage":
-        result = get_total_usage(args.user_id, return_result=True)
+        start, end = get_today_range_utc()
+        result = str(get_total_usage_minutes(args.user_id, start, end, return_result=True))
         output_result(result, args.output)
 
     elif args.command == "get-pc-usage":

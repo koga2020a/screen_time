@@ -262,3 +262,97 @@ BEGIN
     RETURN user_exists;
 END;
 $$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 12. get_default_time_by_api の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_default_time_by_api(
+    p_api_key TEXT,
+    p_user_id UUID
+)
+RETURNS INTEGER AS $$
+DECLARE
+    is_valid BOOLEAN;
+    v_default_time INTEGER;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    -- default_time の取得
+    SELECT users_watch_time.default_time INTO v_default_time
+    FROM users_watch_time
+    WHERE users_watch_time.user_id = p_user_id;
+
+    -- 取得できなかった場合の処理
+    IF v_default_time IS NULL THEN
+        RAISE EXCEPTION 'No default time found for user_id %', p_user_id;
+    END IF;
+
+    RETURN v_default_time;
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 13. get_total_added_minutes_by_api の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_total_added_minutes_by_api(
+    p_api_key TEXT,
+    p_user_id UUID,
+    p_start_time TIMESTAMPTZ,
+    p_end_time TIMESTAMPTZ
+)
+RETURNS INTEGER AS $$
+DECLARE
+    is_valid BOOLEAN;
+    v_total_minutes INTEGER;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    -- 追加された時間の合計を取得
+    SELECT COALESCE(SUM(added_minutes), 0) INTO v_total_minutes
+    FROM watch_time_log
+    WHERE user_id = p_user_id
+    AND created_at >= p_start_time
+    AND created_at < p_end_time;
+
+    RETURN v_total_minutes;
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 14. get_total_usage_minutes_by_api の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_total_usage_minutes_by_api(
+    p_api_key TEXT,
+    p_user_id UUID,
+    p_start_time TIMESTAMPTZ,
+    p_end_time TIMESTAMPTZ
+)
+RETURNS INTEGER AS $$
+DECLARE
+    is_valid BOOLEAN;
+    v_total_minutes INTEGER;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    -- 重複を除いた利用分数を取得
+    SELECT COUNT(DISTINCT minutes_time_jst) INTO v_total_minutes
+    FROM pc_activity_2
+    WHERE user_id = p_user_id
+    AND created_at >= p_start_time
+    AND created_at < p_end_time;
+
+    RETURN v_total_minutes;
+END;
+$$ LANGUAGE plpgsql;

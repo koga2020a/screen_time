@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>AHK環境設定ファイル生成</title>
+  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    label {
+      font-weight: bold;
+      min-width: 80px;
+    }
+    select, input[type="text"] {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+      flex: 1;
+    }
+    button {
+      padding: 8px 16px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .error {
+      color: #dc2626;
+      margin-top: 10px;
+    }
+    .success {
+      color: #16a34a;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- 共通ヘッダーの読み込み -->
+  <div id="commonHeader"></div>
+  <script src="common-header.js"></script>
+
+  <div class="card">
+    <h3>AHK環境設定ファイル生成</h3>
+    
+    <!-- PC選択 -->
+    <div class="input-group">
+      <label for="pcIdSelect">PC:</label>
+      <select id="pcIdSelect">
+        <option value="4e27bdfa-83f9-437f-a06b-0fc108c99039">gam</option>
+        <option value="9e7ec6df-31af-4e88-ba60-66783d50bc08">H1</option>
+        <option value="other">その他</option>
+      </select>
+      <input type="text" id="pcIdOther" placeholder="その他のPC ID" style="display:none;">
+    </div>
+    
+    <!-- ディレクトリ入力欄 -->
+    <div class="input-group">
+      <label for="dirInput">保存先:</label>
+      <input type="text" id="dirInput" value="c:\src\screen_time">
+    </div>
+    
+    <button id="downloadEnvButton">env_ahk.txt生成</button>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    // グローバルな設定
+    const SUPABASE_PROJECT_ID = 'xalrqqutkxzwzvahqpjg';
+    const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
+    let HEADERS;
+    let supabaseClient;
+    let USER_ID = null;
+
+    window.onload = function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+      
+      HEADERS = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      };
+
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true
+        }
+      });
+
+      initializeWithSession();
+    };
+
+    async function initializeWithSession() {
+      const {
+        data: { session },
+        error
+      } = await supabaseClient.auth.getSession();
+      
+      if (error) {
+        console.error('セッション取得エラー:', error);
+        window.location.href = 'auth_test_login.html';
+        return;
+      }
+      
+      if (session) {
+        USER_ID = session.user.id;
+        console.log('ユーザーID取得:', USER_ID);
+      } else {
+        console.log('未ログイン状態');
+        window.location.href = 'auth_test_login.html';
+      }
+    }
+
+    // env_ahk.txt生成・ダウンロード処理
+    async function downloadEnvFile() {
+      if (!USER_ID) {
+        document.getElementById('message').innerHTML =
+          `<div class="error">ユーザー情報の取得に失敗しました</div>`;
+        return;
+      }
+
+      // PC IDの取得
+      let pcId;
+      const pcSelect = document.getElementById('pcIdSelect');
+      if (pcSelect.value === 'other') {
+        pcId = document.getElementById('pcIdOther').value.trim();
+        if (!pcId) {
+          document.getElementById('message').innerHTML =
+            `<div class="error">PC IDを入力してください</div>`;
+          return;
+        }
+      } else {
+        pcId = pcSelect.value;
+      }
+
+      try {
+        // APIキーの取得
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_user_api_key`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID
+            })
+          }
+        );
+
+        if (!response.ok) throw new Error('APIキーの取得に失敗しました');
+        const apiKey = await response.json() || 'AAA';  // APIキーが未設定の場合はデフォルト値
+
+        const screenTimeDir = document.getElementById('dirInput').value.trim();
+
+        // env_ahk.txtの内容を生成
+        const content = [
+          `screenTimeDir=${screenTimeDir}`,
+          `user_id=${USER_ID}`,
+          `user_id_ApiKey=${apiKey}`,
+          `pc_id=${pcId}`,
+          ''  // 最後の改行用
+        ].join('\n');
+
+        // ファイルのダウンロード
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'env_ahk.txt';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        document.getElementById('message').innerHTML =
+          `<div class="success">env_ahk.txtを生成しました</div>`;
+      } catch (error) {
+        document.getElementById('message').innerHTML =
+          `<div class="error">エラー: ${error.message}</div>`;
+      }
+    }
+
+    // 「その他」を選択した場合、PC ID入力欄を表示
+    document.getElementById('pcIdSelect').addEventListener('change', function() {
+      if (this.value === 'other') {
+        document.getElementById('pcIdOther').style.display = 'inline-block';
+      } else {
+        document.getElementById('pcIdOther').style.display = 'none';
+      }
+    });
+
+    document.getElementById('downloadEnvButton').addEventListener('click', downloadEnvFile);
+  </script>
+</body>
+</html>

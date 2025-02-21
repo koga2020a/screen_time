@@ -444,3 +444,28 @@ BEGIN
     ORDER BY minutes_time_jst;
 END;
 $$ LANGUAGE plpgsql;
+
+
+-------------------------------
+-- 18. get_user_api_key の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_user_api_key(p_user_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- users_watch_time テーブルから最新のAPIキーを取得
+    RETURN (
+        SELECT api_key 
+        FROM users_watch_time 
+        WHERE user_id = p_user_id
+        ORDER BY created_at_jst DESC
+        LIMIT 1
+    );
+END;
+$$;
+
+-- 関数の実行権限を設定
+GRANT EXECUTE ON FUNCTION get_user_api_key TO anon;
+GRANT EXECUTE ON FUNCTION get_user_api_key TO authenticated;

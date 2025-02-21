@@ -6,3 +6,4 @@
 *.txt
 !requirements.txt
 *.csv
+is_able_watch.txt

@@ -44,7 +44,8 @@ CREATE TABLE pc_activity_2 (
 CREATE TABLE users_watch_time (
     user_id UUID NOT NULL,  -- ユーザー識別子
     default_time INTEGER NOT NULL,  -- ユーザーが設定したデフォルト視聴時間（分）
-    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')  -- レコード作成時刻 (JST)
+    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST'),  -- レコード作成時刻 (JST)
+    api_key TEXT
 );
 ````
 

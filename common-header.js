@@ -1,4 +1,3 @@
-// common-header.js
 (function() {
   // 元のデザインに基づいたHTMLを埋め込む
   const headerHTML = `
@@ -104,6 +103,38 @@
     
     .dropdown-content a:hover {
       background: rgba(255,255,255,0.1);
+    }
+
+    /* 形式認識用の表示 */
+    #timeFormatInfo {
+      margin-top: 5px;
+    }
+    #timeFormatInfo span {
+      padding: 4px 8px;
+      border: 1px solid #ddd;
+      margin-right: 4px;
+      border-radius: 4px;
+      background: #f0f0f0;
+    }
+
+    /* ダークモード対応 */
+    body.dark-mode #timeFormatInfo span {
+      background: #2d3748;
+      border-color: #4a5568;
+      color: #e2e8f0;
+    }
+
+    /* 通常モードのハイライト */
+    #timeFormatInfo span.highlight {
+      background: #d0f0d0;
+      border-color: #90cfa0;
+    }
+
+    /* ダークモードのハイライト */
+    body.dark-mode #timeFormatInfo span.highlight {
+      background: #2f4f3f;
+      border-color: #3d6b4f;
+      color: #98fb98;
     }
   `;
   document.head.appendChild(customStyle);
@@ -277,4 +308,13 @@
       }
     });
   });
+
+  // ダークモード設定の取得と適用
+  function initializeDarkMode() {
+    const isDarkMode = localStorage.getItem('darkMode') === 'true';
+    document.body.classList.toggle('dark-mode', isDarkMode);
+  }
+
+  // DOMContentLoadedイベントでダークモード初期化
+  document.addEventListener('DOMContentLoaded', initializeDarkMode);
 })();

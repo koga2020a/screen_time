@@ -6,21 +6,10 @@
   <link rel="icon" href="data:,">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 20px;
-      background-color: #f5f5f5;
-    }
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 20px;
-      max-width: 600px;
-      margin: 0 auto;
-    }
+    /* common.cssで定義されていないスタイルのみ残す */
     .input-group {
       display: flex;
       gap: 10px;
@@ -28,35 +17,10 @@
       margin-bottom: 15px;
     }
     label {
-      font-weight: bold;
       min-width: 80px;
     }
     select, input[type="text"] {
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 1em;
       flex: 1;
-    }
-    button {
-      padding: 8px 16px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      width: 100%;
-    }
-    button:hover {
-      background: #1d4ed8;
-    }
-    .error {
-      color: #dc2626;
-      margin-top: 10px;
-    }
-    .success {
-      color: #16a34a;
-      margin-top: 10px;
     }
   </style>
 </head>
@@ -64,6 +28,7 @@
   <!-- 共通ヘッダーの読み込み -->
   <div id="commonHeader"></div>
   <script src="common-header.js"></script>
+  <script src="common.js"></script>
 
   <div class="card">
     <h3>AHK環境設定ファイル生成</h3>
@@ -98,6 +63,9 @@
     let USER_ID = null;
 
     window.onload = function() {
+      // ダークモード設定の適用
+      applyDarkMode();
+      
       const urlParams = new URLSearchParams(window.location.search);
       const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
       

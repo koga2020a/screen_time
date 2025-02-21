@@ -6,88 +6,17 @@
   <link rel="icon" href="data:,">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 20px;
-      background-color: #f5f5f5;
-    }
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 20px;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-    .input-group {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-    label {
-      font-weight: bold;
-      min-width: 80px;
-    }
-    select, input[type="text"] {
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 1em;
-    }
-    /* 入力欄の下線表示 */
-    .valid-format {
-      border-bottom: 2px solid green !important;
-    }
-    .button-group {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    button {
-      padding: 8px 16px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #1d4ed8;
-    }
-    button.delete {
-      background: #dc2626;
-    }
-    button.delete:hover {
-      background: #b91c1c;
-    }
-    .error {
-      color: #dc2626;
-      margin-top: 10px;
-    }
-    .success {
-      color: #16a34a;
-      margin-top: 10px;
-    }
-    /* 形式認識用の表示 */
-    #timeFormatInfo {
-      margin-top: 5px;
-    }
-    #timeFormatInfo span {
-      padding: 4px 8px;
-      border: 1px solid #ddd;
-      margin-right: 4px;
-      border-radius: 4px;
-      background: #f0f0f0;
-    }
+    /* ローカルのスタイルを削除し、common.cssに依存する */
   </style>
 </head>
 <body>
   <!-- 共通ヘッダーの読み込み（直接fetchせず、common-header.js を利用） -->
   <div id="commonHeader"></div>
   <script src="common-header.js"></script>
+  <script src="common.js"></script>
 
   <div class="card">
     <h3>PCアクティビティ登録/削除</h3>
@@ -133,6 +62,9 @@
     let USER_ID = null;
 
     window.onload = function() {
+      // ダークモード設定の読み込みと適用（common.jsの関数を使用）
+      applyDarkMode();
+
       const urlParams = new URLSearchParams(window.location.search);
       // URL パラメータから SUPABASE_KEY を取得（なければデフォルト値を利用）
       const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
@@ -203,21 +135,21 @@
         matched = "single";
       }
       
-      // すべての候補の背景色をリセット
-      document.getElementById('formatSingle').style.background = "#f0f0f0";
-      document.getElementById('formatRange').style.background = "#f0f0f0";
-      document.getElementById('formatFuture').style.background = "#f0f0f0";
-      document.getElementById('formatPast').style.background = "#f0f0f0";
+      // すべての候補のハイライトをリセット
+      document.getElementById('formatSingle').classList.remove('highlight');
+      document.getElementById('formatRange').classList.remove('highlight');
+      document.getElementById('formatFuture').classList.remove('highlight');
+      document.getElementById('formatPast').classList.remove('highlight');
       
       // 該当するものをハイライト
       if (matched === "single") {
-        document.getElementById('formatSingle').style.background = "#d0f0d0";
+        document.getElementById('formatSingle').classList.add('highlight');
       } else if (matched === "range") {
-        document.getElementById('formatRange').style.background = "#d0f0d0";
+        document.getElementById('formatRange').classList.add('highlight');
       } else if (matched === "future") {
-        document.getElementById('formatFuture').style.background = "#d0f0d0";
+        document.getElementById('formatFuture').classList.add('highlight');
       } else if (matched === "past") {
-        document.getElementById('formatPast').style.background = "#d0f0d0";
+        document.getElementById('formatPast').classList.add('highlight');
       }
       
       // 入力が正規表現のいずれかにマッチしていれば下線を付与

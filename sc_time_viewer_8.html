@@ -6,20 +6,9 @@
   <link rel="icon" href="data:,">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 20px;
-      background-color: #f5f5f5;
-    }
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 20px;
-      max-width: 1500px;
-      margin: 0 auto;
-    }
+    /* 共通スタイルはcommon.cssに移動 */
     /* 上部：日付選択＋矢印ボタン */
     .date-controls-wrapper {
       text-align: center;
@@ -204,6 +193,52 @@
       border: 1px solid #888;
       width: 300px;
     }
+    /* ダークモードのスタイル */
+    body.dark-mode {
+      background-color: #1a1a1a;
+      color: #e5e5e5;
+    }
+    
+    .dark-mode .card {
+      background: #2d2d2d;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .dark-mode .day-set {
+      background: #333;
+      border-color: #444;
+    }
+    
+    .dark-mode .timeline {
+      background: #2a2a2a;
+    }
+    
+    .dark-mode .time-marker {
+      color: #aaa;
+    }
+    
+    .dark-mode .time-marker::after {
+      background-color: rgba(255,255,255,0.1);
+    }
+    
+    .dark-mode .date-picker,
+    .dark-mode .arrow-button {
+      background: #333;
+      color: #e5e5e5;
+      border-color: #555;
+    }
+    
+    .dark-mode .modal-content {
+      background-color: #2d2d2d;
+      color: #e5e5e5;
+      border-color: #444;
+    }
+    
+    .dark-mode .total-minutes,
+    .dark-mode .total-view-label,
+    .dark-mode .total-extension-label {
+      color: #aaa;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -238,6 +273,11 @@
       <br>
       <label>
         終了時刻: <input type="number" id="displayEndHour" min="1" max="24">:00
+      </label>
+      <br><br>
+      <!-- ダークモード設定を追加 -->
+      <label>
+        <input type="checkbox" id="darkModeToggle"> ダークモード
       </label>
       <br><br>
       <button id="saveSettings">保存</button>
@@ -664,11 +704,26 @@
       }
     }
     
+    // ダークモード設定の取得
+    function getDarkModeSetting() {
+      return localStorage.getItem('darkMode') === 'true';
+    }
+
+    // ダークモードの適用
+    function applyDarkMode(isDark) {
+      if (isDark) {
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
+    }
+
     // モーダルのオープン・クローズおよび設定保存処理
     document.getElementById('openSettings').addEventListener('click', () => {
       const { startHour, endHour } = getDisplayHours();
       document.getElementById('displayStartHour').value = startHour;
       document.getElementById('displayEndHour').value = endHour;
+      document.getElementById('darkModeToggle').checked = getDarkModeSetting();
       document.getElementById('settingsModal').style.display = 'block';
     });
     
@@ -685,8 +740,19 @@
       }
       const newSettings = { startHour, endHour };
       localStorage.setItem('graphDisplayHours', JSON.stringify(newSettings));
+      
+      // ダークモード設定の保存
+      const isDarkMode = document.getElementById('darkModeToggle').checked;
+      localStorage.setItem('darkMode', isDarkMode);
+      applyDarkMode(isDarkMode);
+      
       document.getElementById('settingsModal').style.display = 'none';
       fetchAndRenderAllDays();
+    });
+    
+    // 初期化時にダークモード設定を適用
+    document.addEventListener('DOMContentLoaded', () => {
+      applyDarkMode(getDarkModeSetting());
     });
     
     // 初期化を実行

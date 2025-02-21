@@ -14,7 +14,7 @@ ReadEnvFile(filePath) {
 }
 
 ; ŠÂ‹«•Ï”‚Ì“Ç‚İ‚İ
-envVars := ReadEnvFile(A_ScriptDir "\env_ahk.txt")
+envVars := ReadEnvFile(A_ScriptDir "\.env")
 global screenTimeDir := envVars["screenTimeDir"]
 global user_id := envVars["user_id"]
 global user_id_ApiKey := envVars["user_id_ApiKey"]

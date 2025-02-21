@@ -51,7 +51,7 @@
             statusMessage.style.color = 'green';
             statusMessage.textContent = 'ログインしています。ダッシュボードへ移動します...';
             setTimeout(() => {
-              window.location.href = 'auth_test_dashboard.html';
+              window.location.href = 'index.html';
             }, 2000);
             return;
           }
@@ -71,7 +71,7 @@
             statusMessage.style.color = 'green';
             statusMessage.textContent = 'メール認証が完了しました。ダッシュボードへ移動します...';
             setTimeout(() => {
-              window.location.href = 'auth_test_dashboard.html';
+              window.location.href = 'index.html';
             }, 2000);
           }
         } catch (err) {
@@ -105,7 +105,7 @@
           statusMessage.style.color = 'green';
           statusMessage.textContent = 'ログイン成功！ダッシュボードへ移動します...';
           setTimeout(() => {
-            window.location.href = 'dashboard.html';
+            window.location.href = 'index.html';
           }, 1000);
         } catch (err) {
           console.error('ログインエラー:', err);

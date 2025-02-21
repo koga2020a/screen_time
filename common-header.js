@@ -28,6 +28,9 @@
           </a>
         </div>
       </div>
+      <button id="logout-btn" style="background:none; border:none; color:white; cursor:pointer; margin-left:15px;">
+        <i class="fas fa-sign-out-alt"></i> ログアウト
+      </button>
     </nav>
   </header>
   `;
@@ -166,28 +169,68 @@
   
   // Supabaseライブラリを動的に読み込む関数
   function loadSupabaseLibrary() {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = displaySessionEmail;
-    document.head.appendChild(script);
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      script.onload = () => {
+        try {
+          // Supabaseクライアントの初期化
+          const SUPABASE_URL = 'https://xalrqqutkxzwzvahqpjg.supabase.co';
+          const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+          window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          resolve(window.supabaseClient);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
   }
   
-  // Supabase関連の処理を開始（ページロード完了後）
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      if (typeof supabase !== 'undefined') {
-        displaySessionEmail();
-      } else {
-        loadSupabaseLibrary();
+  // ログアウトボタンの動作を設定
+  function setupLogoutButton() {
+    const logoutButton = document.getElementById('logout-btn');
+    if (!logoutButton) return;
+
+    logoutButton.addEventListener('click', async () => {
+      try {
+        console.log('ログアウト中...');
+        if (!window.supabaseClient) {
+          await loadSupabaseLibrary();
+        }
+        const { error } = await window.supabaseClient.auth.signOut();
+        
+        if (error) throw error;
+
+        console.log('ログアウトしました。ログインページへ移動します...');
+        setTimeout(() => {
+          window.location.href = 'auth_test_login.html';
+        }, 1500);
+        
+      } catch (err) {
+        console.error('ログアウトエラー:', err);
       }
     });
-  } else {
-    // DOMがすでに読み込まれている場合
-    if (typeof supabase !== 'undefined') {
+  }
+
+  // Supabase関連の処理を開始（ページロード完了後）
+  async function initializeSupabase() {
+    try {
+      if (!window.supabaseClient) {
+        await loadSupabaseLibrary();
+      }
       displaySessionEmail();
-    } else {
-      loadSupabaseLibrary();
+      setupLogoutButton();
+    } catch (error) {
+      console.error('Supabase初期化エラー:', error);
     }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeSupabase);
+  } else {
+    initializeSupabase();
   }
 
   // ドロップダウンの動作制御を追加

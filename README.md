@@ -1,4 +1,3 @@
-
 # Screen Time Management CLI ツール
 
 このリポジトリは、PCのアクティビティログおよび視聴時間の管理を行うための CLI ツールと、Windows 環境での自動実行をサポートする AutoHotkey スクリプトを提供します。Python スクリプトで各種コマンドを実装しており、Supabase をバックエンドにしてデータの記録・照会を行います。
@@ -14,6 +13,7 @@
   - [Python 環境および依存ライブラリ](#python-環境および依存ライブラリ)
   - [.env ファイルの設定](#env-ファイルの設定)
   - [Supabaseテーブルの設定](#supabasetableの設定)
+  - [sclog.py の EXE 化](#sclogpy-の-exe-化)
 - [コマンドの使い方](#コマンドの使い方)
   - [log-pc-activity](#log-pc-activity)
   - [check-watch-time](#check-watch-time)
@@ -219,6 +219,24 @@ $$ LANGUAGE plpgsql;
    INSERT INTO user_pcs (pc_id, pc_name, user_id)
    VALUES ('your-pc-uuid-here', 'PC1', 'your-user-uuid-here');
    ```
+
+### sclog.py の EXE 化
+
+Windows 環境で `sclog.py` を実行可能な EXE ファイルに変換する手順を以下に示します。
+
+1. `PyInstaller` をインストールします。
+
+   ```bash
+   pip install pyinstaller
+   ```
+
+2. `sclog.py` を EXE ファイルに変換します。
+
+   ```bash
+   pyinstaller --onefile sclog.py
+   ```
+
+   これにより、`dist` フォルダ内に `sclog.exe` が生成されます。
 
 ---
 

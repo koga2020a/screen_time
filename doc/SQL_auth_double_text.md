@@ -384,3 +384,63 @@ BEGIN
     RETURN v_pc_id;
 END;
 $$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 16. get_pc_activity_minutes_by_api の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_pc_activity_minutes_by_api(
+    p_api_key TEXT,
+    p_user_id UUID,
+    p_start_time TIMESTAMPTZ,
+    p_end_time TIMESTAMPTZ
+)
+RETURNS TABLE (minutes_time_jst INTEGER) AS $$
+DECLARE
+    is_valid BOOLEAN;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    RETURN QUERY
+    SELECT pc_activity_2.minutes_time_jst
+    FROM pc_activity_2
+    WHERE user_id = p_user_id
+    AND created_at >= p_start_time
+    AND created_at < p_end_time
+    ORDER BY minutes_time_jst;
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 17. get_pc_activity_minutes_by_pc_and_api の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_pc_activity_minutes_by_pc_and_api(
+    p_api_key TEXT,
+    p_user_id UUID,
+    p_pc_id UUID,
+    p_start_time TIMESTAMPTZ,
+    p_end_time TIMESTAMPTZ
+)
+RETURNS TABLE (minutes_time_jst INTEGER) AS $$
+DECLARE
+    is_valid BOOLEAN;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    RETURN QUERY
+    SELECT pc_activity_2.minutes_time_jst
+    FROM pc_activity_2
+    WHERE user_id = p_user_id
+    AND pc_id = p_pc_id
+    AND created_at >= p_start_time
+    AND created_at < p_end_time
+    ORDER BY minutes_time_jst;
+END;
+$$ LANGUAGE plpgsql;

@@ -172,53 +172,61 @@ def log_pc_activity(user_id, pc_identifier, return_result=False):
         except requests.exceptions.JSONDecodeError:
             result = f"APIレスポンス（JSONでデコードできない）: {response.text}"
     else:
-        result = "APIレスポンス: (空のレスポンス)"
+        result = "APIレスポンス: (空のレスポンス 追記のみ)"
     return result if return_result else print(result)
 
-def check_watch_time(user_id, return_result=False):
-    """
-    ユーザの残り視聴可能時間を算出します。
-    計算式:
-      残り時間 = (users_watch_time.default_time + watch_time_log の合計) - 全PCの利用済み分数（重複は1分として）
-    pc_activity_2 の利用状況から minutes_time_jst を元に重複しない利用分数を取得します。
-    """
+def get_pc_activity_minutes_by_pc(user_id, pc_id, start_time, end_time):
+    """指定されたPCの特定期間の利用時間（minutes_time_jst）のリストを取得します。"""
     try:
-        # default_time の取得
-        default_time = get_default_time(user_id)
-        if default_time is None:
-            result = json.dumps({"error": "User not found"}, ensure_ascii=False)
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_pc_activity_minutes_by_pc_and_api"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id,
+            "p_pc_id": pc_id,
+            "p_start_time": start_time,
+            "p_end_time": end_time
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return []
+            
+        if not response.text.strip():
+            return []
+            
+        return response.json()
+    except Exception:
+        return []
+
+def get_pc_usage(user_id, pc_identifier, return_result=False):
+    try:
+        pc_id = get_pc_id_from_user(user_id, pc_identifier)
+        if not pc_id:
+            result = json.dumps({
+                "error": f"指定されたPC (\"{pc_identifier}\") が見つかりません。"
+            }, ensure_ascii=False)
             return result if return_result else print(result)
 
+        pc_name = get_pc_name_from_pc_id(user_id, pc_id) or pc_id
+
         start, end = get_today_range_utc()
-        total_added_minutes = get_total_added_minutes(user_id, start, end)
-        total_allowed = default_time + total_added_minutes
-
-        start_enc = urllib.parse.quote(start, safe="")
-        end_enc = urllib.parse.quote(end, safe="")
-
-        url_activity = (
-            f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}"
-            f"&select=minutes_time_jst"
-        )
-        response = requests.get(url_activity, headers=HEADERS)
-        activity_data = response.json() if response.text.strip() else []
-        unique_minutes_used = len({row["minutes_time_jst"] for row in activity_data})
-        remaining = total_allowed - unique_minutes_used
-
+        activity_data = get_pc_activity_minutes_by_pc(user_id, pc_id, start, end)
+        unique_minutes = {row["minutes_time_jst"] for row in activity_data}
+        total_usage = len(unique_minutes)
+        usage_times = [f"{m // 60:02d}:{m % 60:02d}" for m in sorted(unique_minutes)]
+        
         res = {
             "success": True,
-            "allowed_watch_time_minutes": total_allowed,
-            "used_minutes": unique_minutes_used,
-            "remaining_minutes": remaining,
-            "has_time": remaining > 0
+            "pc_name": pc_name,
+            "pc_usage_minutes": total_usage,
+            "usage_times": usage_times
         }
         result = json.dumps(res, ensure_ascii=False)
     except Exception:
         result = "E"
     return result if return_result else print(result)
 
-def get_total_usage_minutes(user_id, start_time, end_time, return_result=False):
+def get_total_usage_minutes(user_id, start_time, end_time):
     """指定された期間の利用済み分数（重複を除く）を取得します。"""
     try:
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_usage_minutes_by_api"
@@ -240,43 +248,6 @@ def get_total_usage_minutes(user_id, start_time, end_time, return_result=False):
     except Exception:
         return 0
 
-def get_pc_usage(user_id, pc_identifier, return_result=False):
-    """
-    指定したPCの当日利用済み分数（重複は1分として）と利用時刻（HH:MM形式）のリストを返します。
-    pc_identifier が UUID でなければ pc_name としてpc_idを取得し、
-    pc_activity_2 の minutes_time_jst を参照して結果に pc_name も含めます。
-    """
-    try:
-        pc_id = get_pc_id_from_user(user_id, pc_identifier)
-        if not pc_id:
-            result = json.dumps({
-                "error": f"指定されたPC (\"{pc_identifier}\") が見つかりません。"
-            }, ensure_ascii=False)
-            return result if return_result else print(result)
-
-        pc_name = get_pc_name_from_pc_id(user_id, pc_id) or pc_id
-
-        start, end = get_today_range_utc()
-        start_enc = urllib.parse.quote(start, safe="")
-        end_enc = urllib.parse.quote(end, safe="")
-        url = f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}&pc_id=eq.{pc_id}" \
-              f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=minutes_time_jst"
-        response = requests.get(url, headers=HEADERS)
-        data = response.json() if response.text.strip() else []
-        unique_minutes = {row["minutes_time_jst"] for row in data}
-        total_usage = len(unique_minutes)
-        usage_times = [f"{m // 60:02d}:{m % 60:02d}" for m in sorted(unique_minutes)]
-        res = {
-            "success": True,
-            "pc_name": pc_name,
-            "pc_usage_minutes": total_usage,
-            "usage_times": usage_times
-        }
-        result = json.dumps(res, ensure_ascii=False)
-    except Exception:
-        result = "E"
-    return result if return_result else print(result)
-
 def get_allowed_time(user_id, return_result=False):
     """
     ユーザのその日の視聴可能時間（users_watch_time.default_time + watch_time_log の合計）を返します。
@@ -289,28 +260,14 @@ def get_allowed_time(user_id, return_result=False):
             return result if return_result else print(result)
 
         start, end = get_today_range_utc()
-        start_enc = urllib.parse.quote(start, safe="")
-        end_enc = urllib.parse.quote(end, safe="")
-        url_watch_log = (
-            f"{SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=added_minutes"
-        )
-        response = requests.get(url_watch_log, headers=HEADERS)
-        log_data = response.json() if response.text.strip() else []
-        total_added_minutes = sum(log["added_minutes"] for log in log_data)
+        total_added_minutes = get_total_added_minutes(user_id, start, end)
         allowed = default_time + total_added_minutes
 
         # 利用済み分数の取得（pc_activity_2 の minutes_time_jst を参照）
-        url_activity = (
-            f"{SUPABASE_URL}/rest/v1/pc_activity_2?user_id=eq.{user_id}"
-            f"&created_at=gte.{start_enc}&created_at=lt.{end_enc}&select=minutes_time_jst"
-        )
-        resp_activity = requests.get(url_activity, headers=HEADERS)
-        if resp_activity.status_code != 200:
+        total_usage = get_total_usage_minutes(user_id, start, end)
+        if total_usage == 0 and isinstance(total_usage, str) and total_usage == "E":
             result = "E"
         else:
-            activity_data = resp_activity.json() if resp_activity.text.strip() else []
-            total_usage = len({row["minutes_time_jst"] for row in activity_data})
             result = "T" if total_usage <= allowed else "F"
     except Exception:
         result = "E"
@@ -652,7 +609,7 @@ def main():
         output_result(result, args.output)
 
     elif args.command == "check-watch-time":
-        result = check_watch_time(args.user_id, return_result=True)
+        result = get_allowed_time(args.user_id, return_result=True)
         output_result(result, args.output)
 
     elif args.command == "get-total-usage":

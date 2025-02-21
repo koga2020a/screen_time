@@ -42,19 +42,23 @@ def get_pc_id_from_user(user_id, pc_identifier):
     if is_valid_uuid(pc_identifier):
         return pc_identifier
 
-    url = (
-        f"{SUPABASE_URL}/rest/v1/user_pcs"
-        f"?user_id=eq.{user_id}&pc_name=eq.{pc_identifier}&select=pc_id"
-    )
-    response = requests.get(url, headers=HEADERS)
-    if not response.text.strip():
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_pc_id_by_name_and_user"
+        payload = {
+            "p_api_key": api_key,
+            "p_user_id": user_id,
+            "p_pc_name": pc_identifier
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return None
+            
+        if not response.text.strip():
+            return None
+            
+        return response.text.strip('"')  # Supabaseは文字列を引用符付きで返すため、それを除去
+    except Exception:
         return None
-
-    data = response.json()
-    if not data:
-        return None
-
-    return data[0]["pc_id"]
 
 def get_pc_name_from_pc_id(user_id, pc_id):
     """

@@ -356,3 +356,31 @@ BEGIN
     RETURN v_total_minutes;
 END;
 $$ LANGUAGE plpgsql;
+
+-------------------------------
+-- 15. get_pc_id_by_name_and_user の関数
+-------------------------------
+CREATE OR REPLACE FUNCTION get_pc_id_by_name_and_user(
+    p_api_key TEXT,
+    p_user_id UUID,
+    p_pc_name TEXT
+)
+RETURNS UUID AS $$
+DECLARE
+    is_valid BOOLEAN;
+    v_pc_id UUID;
+BEGIN
+    -- APIキーの検証
+    is_valid := validate_user_api_key_ext(p_user_id, p_api_key);
+    IF NOT is_valid THEN
+        RAISE EXCEPTION 'Invalid API key for user %', p_user_id;
+    END IF;
+
+    -- pc_id の取得
+    SELECT pc_id INTO v_pc_id
+    FROM user_pcs
+    WHERE user_id = p_user_id AND pc_name = p_pc_name;
+
+    RETURN v_pc_id;
+END;
+$$ LANGUAGE plpgsql;

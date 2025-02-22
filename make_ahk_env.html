@@ -28,7 +28,6 @@
   <!-- 共通ヘッダーの読み込み -->
   <div id="commonHeader"></div>
   <script src="common-header.js"></script>
-  <script src="common.js"></script>
 
   <div class="card">
     <h3>AHK環境設定ファイル生成</h3>
@@ -37,8 +36,6 @@
     <div class="input-group">
       <label for="pcIdSelect">PC:</label>
       <select id="pcIdSelect">
-        <option value="4e27bdfa-83f9-437f-a06b-0fc108c99039">gam</option>
-        <option value="9e7ec6df-31af-4e88-ba60-66783d50bc08">H1</option>
         <option value="other">その他</option>
       </select>
       <input type="text" id="pcIdOther" placeholder="その他のPC ID" style="display:none;">
@@ -50,7 +47,7 @@
       <input type="text" id="dirInput" value="c:\src\screen_time">
     </div>
     
-    <button id="downloadEnvButton">env_ahk.txt生成</button>
+    <button id="downloadEnvButton">.env生成</button>
     <div id="message"></div>
   </div>
 
@@ -68,6 +65,9 @@
       
       const urlParams = new URLSearchParams(window.location.search);
       const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+      
+      // グローバルスコープに SUPABASE_KEY を追加
+      window.SUPABASE_KEY = SUPABASE_KEY;
       
       HEADERS = {
         'apikey': SUPABASE_KEY,
@@ -101,13 +101,60 @@
       if (session) {
         USER_ID = session.user.id;
         console.log('ユーザーID取得:', USER_ID);
+        // PCリストを取得して表示
+        await loadPcList();
       } else {
         console.log('未ログイン状態');
         window.location.href = 'auth_test_login.html';
       }
     }
 
-    // env_ahk.txt生成・ダウンロード処理
+    // PCリストを取得して表示する関数
+    async function loadPcList() {
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        if (!session) {
+          window.location.href = 'auth_test_login.html';
+          return;
+        }
+
+        const { data, error } = await supabaseClient
+          .rpc('get_user_pcs', { p_user_id: USER_ID });
+
+        if (error) {
+          if (error.message.includes('Unauthorized')) {
+            console.error('認証エラー:', error);
+            window.location.href = 'auth_test_login.html';
+            return;
+          }
+          throw error;
+        }
+
+        const pcSelect = document.getElementById('pcIdSelect');
+        // 既存のオプションをクリア（「その他」は残す）
+        pcSelect.innerHTML = '<option value="other">その他</option>';
+
+        // 取得したPCリストを追加
+        if (Array.isArray(data)) {
+          data.forEach(pc => {
+            const option = document.createElement('option');
+            option.value = pc.pc_id;
+            option.textContent = pc.pc_name;
+            pcSelect.insertBefore(option, pcSelect.lastChild);
+          });
+        } else {
+          throw new Error('Unexpected data structure');
+        }
+      } catch (error) {
+        console.error('PCリスト取得エラー:', error);
+        document.getElementById('message').innerHTML =
+          `<div class="error">PCリストの取得に失敗しました: ${error.message}</div>`;
+      }
+    }
+
+    // .env生成・ダウンロード処理
     async function downloadEnvFile() {
       if (!USER_ID) {
         document.getElementById('message').innerHTML =
@@ -147,12 +194,14 @@
 
         const screenTimeDir = document.getElementById('dirInput').value.trim();
 
-        // env_ahk.txtの内容を生成
+        // .envの内容を生成
         const content = [
           `screenTimeDir=${screenTimeDir}`,
           `user_id=${USER_ID}`,
           `user_id_ApiKey=${apiKey}`,
           `pc_id=${pcId}`,
+          `SUPABASE_URL=${SUPABASE_URL}`,
+          `SUPABASE_API_KEY=${SUPABASE_KEY}`,
           ''  // 最後の改行用
         ].join('\n');
 
@@ -161,14 +210,14 @@
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'env_ahk.txt';
+        a.download = '.env';
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
         document.getElementById('message').innerHTML =
-          `<div class="success">env_ahk.txtを生成しました</div>`;
+          `<div class="success">.envを生成しました</div>`;
       } catch (error) {
         document.getElementById('message').innerHTML =
           `<div class="error">エラー: ${error.message}</div>`;
@@ -185,6 +234,16 @@
     });
 
     document.getElementById('downloadEnvButton').addEventListener('click', downloadEnvFile);
+
+    // ダークモード設定の取得と適用
+    function applyDarkMode() {
+      const isDarkMode = localStorage.getItem('darkMode') === 'true';
+      if (isDarkMode) {
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
+    }
   </script>
 </body>
 </html>

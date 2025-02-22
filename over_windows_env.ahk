@@ -21,6 +21,8 @@ global pc_id := envVars["pc_id"]
 
 global isAbleWatchFile := A_ScriptDir "\is_able_watch.txt"
 global scResultTimeFile := A_ScriptDir "\sc_result_time.txt"
+global lidStatusLogFile := A_ScriptDir "\lid_status_log.txt"
+global previousLidStatus := ""  ; 前回の状態を保存するグローバル変数
 
 ; 起動時に中間ファイルを削除する
 FileDelete, %isAbleWatchFile%
@@ -48,7 +50,8 @@ GoSub, CheckWatchTime
 return
 
 MainLoop:
-    if (IsLidClosed()) {
+    test := IsLidClosed()
+    if (test) {
         return  ; 蓋が閉じているなら何もしない
     }
     GoSub, CheckFile
@@ -101,18 +104,58 @@ CheckWatchTime:
 return
 
 IsLidClosed() {
-    ; PowerShell を実行して蓋の状態を取得
-    RunWait, cmd /c PowerShell -Command "$status = (Get-WmiObject -Namespace root\WMI -Class WmiMonitorBasicDisplayParams).Active; if ($status -eq $true) { 'Lid Open' } else { 'Lid Closed' }" > %A_ScriptDir%\lid_status.txt, , Hide
-    FileRead, lidStatus, %A_ScriptDir%\lid_status.txt
-    lidStatus := Trim(lidStatus)
+    FormatTime, currentTime,, yyyy/MM/dd HH:mm:ss
     
-    if (lidStatus ~= "Lid Open") {
-        return False  ; 蓋が開いている
+    ; WmiMonitorBasicDisplayParamsで画面の状態を確認
+    ;RunWait, cmd /c PowerShell -Command "$monitor = Get-WmiObject -Namespace root\WMI -Class WmiMonitorBasicDisplayParams; $status = if ($monitor.Active -eq $true) { 'Lid Open' } else { 'Lid Closed' }; Write-Output 'Status: ' $status; Write-Output 'Raw: '; $monitor | Format-List *" > %A_ScriptDir%\monitor_status.txt, , Hide
+    ;FileRead, monitorStatus, %A_ScriptDir%\monitor_status.txt
+
+    ; 状態を判定（Active = Trueなら開いている）
+    RegExMatch(monitorStatus, "Active\s+:\s+[^\r\n]+", match)
+    if (!InStr(match, "True") && match != "" && match != "`n") {
+        FormatTime, currentTime, %A_Now%, yyyy/MM/dd HH:mm:ss
+        FileAppend, % currentTime . "`n" . match . "`n", %A_ScriptDir%\lid_TEST_TEST.txt
     }
-    if (lidStatus ~= "Lid Closed") {
-       return True  ; 蓋が閉じている
+    isLidClosed := !(monitorStatus ~= "Active\s+:\s+True")
+    
+    ; 状態が変化した場合のみログを記録
+    if (previousLidStatus != isLidClosed) {
+        statusText := isLidClosed ? "Lid Closed" : "Lid Open"
+        LogLidStatus(statusText)
+        previousLidStatus := isLidClosed
     }
-    return False  ; 蓋が開いているとみなす
+
+    return isLidClosed
+}
+
+LogLidStatus(status) {
+    FormatTime, currentTime,, yyyy/MM/dd HH:mm:ss
+    logEntry := currentTime . " - " . status . "`n"
+    
+    ; 既存のログを読み込む
+    FileRead, existingLog, %lidStatusLogFile%
+    
+    ; 新しいエントリを先頭に追加
+    newLog := logEntry . existingLog
+    
+    ; ログを行単位で分割
+    logLines := StrSplit(newLog, "`n", "`r")
+    
+    ; 最新の60行だけを保持
+    truncatedLog := ""
+    lineCount := 0
+    Loop, % logLines.Length() {
+        if (lineCount >= 60)
+            break
+        if (logLines[A_Index] != "") {
+            truncatedLog .= logLines[A_Index] . "`n"
+            lineCount++
+        }
+    }
+    
+    ; ファイルに書き込む
+    FileDelete, %lidStatusLogFile%
+    FileAppend, %truncatedLog%, %lidStatusLogFile%
 }
 
 ; === 以下、タスクトレイの Exit 機能用コード ===

@@ -488,7 +488,7 @@ def main():
     default_pc_id = os.getenv("pc_id")
     default_api_key = os.getenv("user_id_ApiKey")
     
-    # グローバルオプションとしてapi-key, user-id, pc-idを設定するための親パーサーを作成
+    # グローバルオプション用の親パーサー
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
         "--api-key",
@@ -502,7 +502,8 @@ def main():
         "--pc-id",
         help="PC ID (UUID)（省略時は環境変数 pc_id を使用）"
     )
-
+    
+    # メインパーサーの設定
     parser = argparse.ArgumentParser(
         description=(
             "Screen Time Management CLI\n\n"
@@ -512,12 +513,12 @@ def main():
             "エラー発生時は 'E'、視聴可能なら 'T'、超過していれば 'F' などの結果を返します。"
         ),
         formatter_class=argparse.RawTextHelpFormatter,
-        parents=[parent_parser]  # 親パーサーを継承
+        parents=[parent_parser]
     )
-
+    
     subparsers = parser.add_subparsers(title="コマンド", dest="command", required=True)
-
-    # 各サブパーサーに親パーサーを継承させる
+    
+    # 各サブコマンドの設定（必要なオプションはそのまま）
     parser_log_pc = subparsers.add_parser(
         "log-pc-activity",
         help="指定したユーザとPC (UUIDまたはpc_name) を用いて、現在時刻を記録します。",
@@ -536,23 +537,33 @@ def main():
         help="PC ID (UUID) もしくは user_pcs の pc_name（省略時は --pc-id オプションまたは環境変数 pc_id を使用）"
     )
     parser_log_pc.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_check_watch = subparsers.add_parser(
         "check-watch-time",
         help="ユーザの残り視聴可能時間を取得します。\n(ユーザの default_time + watch_time_log の合計 - 全PCの利用済み分数)",
         parents=[parent_parser]
     )
-    parser_check_watch.add_argument("user_id", help="ユーザID (UUID)")
+    parser_check_watch.add_argument(
+        "user_id",
+        nargs="?",
+        default=None,
+        help="ユーザID (UUID)（省略時は --user-id オプションまたは環境変数 user_id を使用）"
+    )
     parser_check_watch.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_total_usage = subparsers.add_parser(
         "get-total-usage",
         help="当日の全PCでの利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。",
         parents=[parent_parser]
     )
-    parser_total_usage.add_argument("user_id", help="ユーザID (UUID)")
+    parser_total_usage.add_argument(
+        "user_id",
+        nargs="?",
+        default=None,
+        help="ユーザID (UUID)（省略時は --user-id オプションまたは環境変数 user_id を使用）"
+    )
     parser_total_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_pc_usage = subparsers.add_parser(
         "get-pc-usage",
         help="指定したPC (UUIDまたはpc_name) の利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。",
@@ -561,7 +572,7 @@ def main():
     parser_pc_usage.add_argument("user_id", help="ユーザID (UUID)")
     parser_pc_usage.add_argument("pc_identifier", help="PC ID (UUID) もしくは user_pcs の pc_name")
     parser_pc_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_allowed_time = subparsers.add_parser(
         "get-allowed-time",
         help="その日の視聴可能時間 (default_time + watch_time_log の合計) を取得します。",
@@ -569,13 +580,18 @@ def main():
     )
     parser_allowed_time.add_argument("user_id", help="ユーザID (UUID)")
     parser_allowed_time.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_check_usage = subparsers.add_parser(
         "check-usage",
         help="全PCの利用済み分数と視聴可能時間を比較し、範囲内か超過かを返します。",
         parents=[parent_parser]
     )
-    parser_check_usage.add_argument("user_id", help="ユーザID (UUID)")
+    parser_check_usage.add_argument(
+        "user_id",
+        nargs="?",
+        default=None,
+        help="ユーザID (UUID)（省略時は --user-id オプションまたは環境変数 user_id を使用）"
+    )
     parser_check_usage.add_argument(
         "--message-mode",
         choices=["normal", "hover", "giant", "fileout", "fileout_only_message"],
@@ -597,7 +613,7 @@ def main():
         help="出力時のエンコードを指定します（cp932 または sjis）。省略時は utf-8。"
     )
     parser_check_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_is_able = subparsers.add_parser(
         "is-able-watch",
         help=(
@@ -613,7 +629,7 @@ def main():
         help="ユーザID (UUID)（省略時は --user-id オプションまたは環境変数 user_id を使用）"
     )
     parser_is_able.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     parser_insert_watch = subparsers.add_parser(
         "insert-watch-log",
         help="watch_time_log テーブルに added_minutes の値を挿入します。（正・負どちらも可能）",
@@ -622,19 +638,19 @@ def main():
     parser_insert_watch.add_argument("user_id", help="ユーザID (UUID)")
     parser_insert_watch.add_argument("added_minutes", type=int, help="追加する分数（マイナス値も可）")
     parser_insert_watch.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
-
+    
     args = parser.parse_args()
     
-    # API keyの設定（コマンドライン引数 > 環境変数）
+    # API keyの設定（コマンドライン > 環境変数の順）
     global api_key
     api_key = args.api_key or USER_API_KEY or default_api_key
     if not api_key:
         print("エラー: API keyが指定されていません。--api-key オプションまたは環境変数 USER_API_KEY/user_id_ApiKey を設定してください。")
         sys.exit(1)
-
-    # user_idの設定（位置引数 > --user-id オプション > 環境変数）
+    
+    # 各コマンドごとの引数取得（重複処理を削除）
     if args.command == "log-pc-activity":
-        user_id = args.user_id or args.user_id or default_user_id
+        user_id = args.user_id or default_user_id
         pc_identifier = args.pc_identifier or args.pc_id or default_pc_id
         if not user_id:
             print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
@@ -644,37 +660,58 @@ def main():
             sys.exit(1)
         result = log_pc_activity(user_id, pc_identifier, return_result=True)
         output_result(result, args.output)
-
+    
     elif args.command == "check-watch-time":
-        result = get_allowed_time(args.user_id, return_result=True)
+        user_id = args.user_id or default_user_id
+        if not user_id:
+            print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
+            sys.exit(1)
+        result = get_allowed_time(user_id, return_result=True)
         output_result(result, args.output)
-
+    
     elif args.command == "get-total-usage":
+        user_id = args.user_id or default_user_id
+        if not user_id:
+            print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
+            sys.exit(1)
         start, end = get_today_range_utc()
-        result = str(get_total_usage_minutes(args.user_id, start, end, return_result=True))
+        result = str(get_total_usage_minutes(user_id, start, end))
         output_result(result, args.output)
-
+    
     elif args.command == "get-pc-usage":
+        # user_idとpc_identifierは必須位置引数として受け取る
         result = get_pc_usage(args.user_id, args.pc_identifier, return_result=True)
         output_result(result, args.output)
-
+    
     elif args.command == "get-allowed-time":
-        result = get_allowed_time(args.user_id, return_result=True)
+        user_id = args.user_id or default_user_id
+        if not user_id:
+            print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
+            sys.exit(1)
+        result = get_allowed_time(user_id, return_result=True)
         output_result(result, args.output)
-
+    
     elif args.command == "check-usage":
+        user_id = args.user_id or default_user_id
+        if not user_id:
+            print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
+            sys.exit(1)
         msg_mode = args.message_mode
-        user_id = args.user_id
         out_enc = args.encoding or "utf-8"
-
-        if msg_mode == "fileout":
+    
+        if msg_mode in ["fileout", "fileout_only_message"]:
             if args.output:
                 for mode in ["hover", "giant", "normal"]:
                     res = check_usage(user_id, message_mode=mode, return_result=True)
                     out_filename = f"{args.output}_{mode}"
                     try:
                         with open(out_filename, "w", encoding=out_enc) as f:
-                            f.write(res)
+                            # fileout_only_messageの場合はmessage_jpのみ書き出す
+                            if msg_mode == "fileout_only_message":
+                                data = json.loads(res)
+                                f.write(data.get("message_jp", "E"))
+                            else:
+                                f.write(res)
                         print(f"Output to {out_filename}:")
                         print(res)
                         print("-----")
@@ -687,63 +724,28 @@ def main():
                     res = check_usage(user_id, message_mode=mode, return_result=True)
                     try:
                         data = json.loads(res)
-                        success = data.get("success", "")
-                        total_usage_minutes = data.get("total_usage_minutes", "")
-                        allowed_watch_time_minutes = data.get("allowed_watch_time_minutes", "")
-                        status = data.get("status", "")
-                        message_jp = data.get("message_jp", "")
                         line = (
-                            f"{mode},{success},{total_usage_minutes},"
-                            f"{allowed_watch_time_minutes},{status},{message_jp}"
+                            f"{mode},{data.get('success', '')},"
+                            f"{data.get('total_usage_minutes', '')},"
+                            f"{data.get('allowed_watch_time_minutes', '')},"
+                            f"{data.get('status', '')},{data.get('message_jp', '')}"
                         )
                     except Exception:
-                        line = f"{mode},E,,,,"
+                        line = f"{mode},E,,,," 
                     print(line)
-
-        elif msg_mode == "fileout_only_message":
-            if args.output:
-                for mode in ["hover", "giant", "normal"]:
-                    res = check_usage(user_id, message_mode=mode, return_result=True)
-                    out_filename = f"{args.output}_{mode}"
-                    try:
-                        data = json.loads(res)
-                        message_jp = data.get("message_jp", "")
-                    except Exception:
-                        message_jp = "E"
-
-                    try:
-                        with open(out_filename, "w", encoding=out_enc) as f:
-                            f.write(message_jp)
-                        print(f"Output to {out_filename}:")
-                        print(message_jp)
-                        print("-----")
-                    except Exception:
-                        print("E")
-            else:
-                header = "mode,message_jp"
-                print(header)
-                for mode in ["hover", "giant", "normal"]:
-                    res = check_usage(user_id, message_mode=mode, return_result=True)
-                    try:
-                        data = json.loads(res)
-                        message_jp = data.get("message_jp", "")
-                        line = f"{mode},{message_jp}"
-                    except Exception:
-                        line = f"{mode},E"
-                    print(line)
-
+    
         else:
             result = check_usage(user_id, message_mode=msg_mode, return_result=True)
             output_result(result, args.output, out_enc)
-
+    
     elif args.command == "is-able-watch":
-        user_id = args.user_id or args.user_id or default_user_id
+        user_id = args.user_id or default_user_id
         if not user_id:
             print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
             sys.exit(1)
         result = is_able_watch(user_id, return_result=True)
         output_result(result, args.output)
-
+    
     elif args.command == "insert-watch-log":
         result = insert_watch_log(args.user_id, args.added_minutes, return_result=True)
         output_result(result, args.output)

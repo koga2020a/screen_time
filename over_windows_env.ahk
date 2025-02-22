@@ -15,19 +15,18 @@ ReadEnvFile(filePath) {
 
 ; 環境変数の読み込み
 envVars := ReadEnvFile(A_ScriptDir "\.env")
-global screenTimeDir := envVars["screenTimeDir"]
 global user_id := envVars["user_id"]
 global user_id_ApiKey := envVars["user_id_ApiKey"]
 global pc_id := envVars["pc_id"]
 
-global isAbleWatchFile := screenTimeDir "\is_able_watch.txt"
-global scResultTimeFile := screenTimeDir "\sc_result_time.txt"
+global isAbleWatchFile := A_ScriptDir "\is_able_watch.txt"
+global scResultTimeFile := A_ScriptDir "\sc_result_time.txt"
 
 ; 起動時に中間ファイルを削除する
 FileDelete, %isAbleWatchFile%
 FileDelete, %scResultTimeFile%_giant
 FileDelete, %scResultTimeFile%_hover
-FileDelete, %screenTimeDir%\lid_status.txt
+FileDelete, %A_ScriptDir%\lid_status.txt
 
 #Persistent
 #NoEnv
@@ -57,8 +56,8 @@ MainLoop:
 return
 
 CheckFile:
-    Run, python %screenTimeDir%\sclog.py log-pc-activity %user_id% %pc_id% --api-key %user_id_ApiKey%, , Hide
-    Run, python %screenTimeDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile% --api-key %user_id_ApiKey%, , Hide
+    Run, python %A_ScriptDir%\sclog.py log-pc-activity %user_id% %pc_id% --api-key %user_id_ApiKey%, , Hide
+    Run, python %A_ScriptDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile% --api-key %user_id_ApiKey%, , Hide
     Sleep, 3000
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
@@ -89,7 +88,7 @@ CheckFile:
 return
 
 CheckWatchTime:
-    Run, python %screenTimeDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis --api-key %user_id_ApiKey%, , Hide
+    Run, python %A_ScriptDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis --api-key %user_id_ApiKey%, , Hide
     Sleep, 3000
 
     FileRead, watchTimeContent_giant, %scResultTimeFile%_giant
@@ -103,8 +102,8 @@ return
 
 IsLidClosed() {
     ; PowerShell を実行して蓋の状態を取得
-    RunWait, cmd /c PowerShell -Command "$status = (Get-WmiObject -Namespace root\WMI -Class WmiMonitorBasicDisplayParams).Active; if ($status -eq $true) { 'Lid Open' } else { 'Lid Closed' }" > %screenTimeDir%\lid_status.txt, , Hide
-    FileRead, lidStatus, %screenTimeDir%\lid_status.txt
+    RunWait, cmd /c PowerShell -Command "$status = (Get-WmiObject -Namespace root\WMI -Class WmiMonitorBasicDisplayParams).Active; if ($status -eq $true) { 'Lid Open' } else { 'Lid Closed' }" > %A_ScriptDir%\lid_status.txt, , Hide
+    FileRead, lidStatus, %A_ScriptDir%\lid_status.txt
     lidStatus := Trim(lidStatus)
     
     if (lidStatus ~= "Lid Open") {

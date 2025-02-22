@@ -145,8 +145,9 @@
       background: #f8f8f8;
       padding: 4px;
       border-radius: 4px;
-      height: 100%; /* 変更前: 500px → 変更後: 100%（親要素 day-content の高さ 600px に合わせる） */
+      height: 100%;
       width: 90px;
+      overflow: visible;
     }
     .loading, .error {
       text-align: center;
@@ -170,6 +171,7 @@
       right: 0;
       border-radius: 2px;
       transition: opacity 0.2s;
+      z-index: 2;
     }
     .time-segment:hover {
       opacity: 0.8;
@@ -512,6 +514,7 @@
     async function renderDaySet(dateStr) {
       const daySet = document.createElement('div');
       daySet.className = 'day-set';
+      daySet.id = `day-set-${dateStr.replace(/-/g, '')}`;
       
       const dayLabel = document.createElement('div');
       dayLabel.className = 'day-label';
@@ -541,26 +544,6 @@
       daySet.appendChild(dayContent);
       
       try {
-        // 当日の開始・終了時刻を設定
-        const startTime = dateStr + "T00:00:00";
-        const endTime = dateStr + "T23:59:59";
-        
-        // watch_time_logから差分を取得
-        const logResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${startTime}&created_at_jst=lte.${endTime}`,
-          {
-            headers: HEADERS
-          }
-        );
-        
-        if (logResponse.ok) {
-          const logs = await logResponse.json();
-          logs.forEach(log => {
-            const diff = log.added_minutes - log.input_minutes;
-            console.log(`${log.created_at_jst} ${dateStr}の差分: ${diff}分 input:${log.input_minutes}分 added:${log.added_minutes}分`);
-          });
-        }
-
         // リクエストペイロード形式
         const requestBody = {
           target_user_id: USER_ID,
@@ -573,6 +556,7 @@
           body: requestBody
         });
 
+        // PCごとのタイムライン描画を先に実行
         const usageResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/rpc/get_time_ranges_by_user`,
           {
@@ -582,28 +566,79 @@
           }
         );
 
-        if (!usageResponse.ok) {
-          throw new Error(`Usage fetch error: ${usageResponse.status} ${usageResponse.statusText}`);
-        }
+        if (usageResponse.ok) {
+          const usageData = await usageResponse.json();
+          graphsContainer.innerHTML = '';
 
-        const usageData = await usageResponse.json();
-        console.log('Parsed usage data:', usageData);
+          if (Array.isArray(usageData) && usageData.length > 0) {
+            for (const row of usageData) {
+              let timeRanges = row.time_ranges;
+              if (typeof timeRanges === 'string') {
+                timeRanges = JSON.parse(timeRanges);
+              }
+              timeRanges = mergeTimeRanges(timeRanges);
+              const pcName = await getPcName(row.pc_id);
+              const timeline = createTimelineFromRanges(pcName, timeRanges, row.activity_count);
+              
+              const logResponse = await fetch(
+                `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${dateStr}T00:00:00&created_at_jst=lte.${dateStr}T23:59:59`,
+                {
+                  headers: HEADERS
+                }
+              );
+              
+              if (logResponse.ok) {
+                const logs = await logResponse.json();
+                logs.forEach(log => {
+                  const diff = log.added_minutes - log.input_minutes;
+                  if (diff > 0) {
+                    const createdAt = new Date(log.created_at_jst);
+                    createdAt.setHours(createdAt.getHours() - 9); // JSTからUTCに変換
+                    const endMinutes = createdAt.getHours() * 60 + createdAt.getMinutes();
+                    const startMinutes = endMinutes - diff;
+                    
+                    // タイムラインの時間範囲を取得
+                    const { startHour, endHour } = getDisplayHours();
+                    console.log('Display hours:', { startHour, endHour }); // デバッグ用
+                    console.log('Time range:', { startMinutes, endMinutes }); // デバッグ用
+                    
+                    const startDisplayMinutes = startHour * 60;
+                    const endDisplayMinutes = endHour * 60;
+                    const totalDisplayMinutes = endDisplayMinutes - startDisplayMinutes;
 
-        graphsContainer.innerHTML = '';
-
-        if (!Array.isArray(usageData) || usageData.length === 0) {
-          graphsContainer.innerHTML = '<div class="loading">この日のデータはありません</div>';
-        } else {
-          // 各PCのタイムライン描画
-          for (const row of usageData) {
-            let timeRanges = row.time_ranges;
-            if (typeof timeRanges === 'string') {
-              timeRanges = JSON.parse(timeRanges);
+                    // 時間範囲の調整
+                    const adjustedStart = Math.max(startMinutes, startDisplayMinutes);
+                    const adjustedEnd = Math.min(endMinutes, endDisplayMinutes);
+                    
+                    if (adjustedEnd > adjustedStart) {
+                      const timeSegment = document.createElement('div');
+                      timeSegment.className = 'time-segment';
+                      timeSegment.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+                      timeSegment.style.left = '25%';
+                      timeSegment.style.right = '25%';
+                      timeSegment.style.position = 'absolute';
+                      
+                      const topPercent = ((adjustedStart - startDisplayMinutes) / totalDisplayMinutes) * 100;
+                      const heightPercent = ((adjustedEnd - adjustedStart) / totalDisplayMinutes) * 100;
+                      
+                      timeSegment.style.top = `${topPercent}%`;
+                      timeSegment.style.height = `${heightPercent}%`;
+                      
+                      // メモ情報を含めたツールチップを設定
+                      const memoText = log.memo ? `\nメモ: ${log.memo}` : '';
+                      timeSegment.title = `調整時間: ${diff}分 (${getTimeString(startMinutes)}-${getTimeString(endMinutes)})${memoText}`;
+                      
+                      const timelineElement = timeline.querySelector('.timeline');
+                      if (timelineElement) {
+                        timelineElement.appendChild(timeSegment);
+                      }
+                    }
+                  }
+                });
+              }
+              
+              graphsContainer.appendChild(timeline);
             }
-            timeRanges = mergeTimeRanges(timeRanges);
-            const pcName = await getPcName(row.pc_id);
-            const timeline = createTimelineFromRanges(pcName, timeRanges, row.activity_count);
-            graphsContainer.appendChild(timeline);
           }
         }
 
@@ -666,7 +701,7 @@
         totalExtensionLabel.textContent = `利用時間: ${diffData.unique_minutes_count}分, 差分: ${diffLabel}`;
         
       } catch (error) {
-        console.error('Error details:', error);
+        console.error('Error:', error);
         graphsContainer.innerHTML = '<div class="error">データの取得に失敗しました</div>';
       }
       return daySet;

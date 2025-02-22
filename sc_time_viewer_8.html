@@ -102,7 +102,7 @@
       width: 100vw; /* 十分な長さ */
       height: 1px;
       background-color: rgba(0,0,0,0.05);
-      z-index: -1;
+      z-index: 1;
     }
     .graphs-container {
       display: flex;
@@ -556,7 +556,25 @@
           body: requestBody
         });
 
-        // PCごとのタイムライン描画を先に実行
+        // まず追加時間の差分の総計を取得
+        const logResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${dateStr}T00:00:00&created_at_jst=lte.${dateStr}T23:59:59`,
+          {
+            headers: HEADERS
+          }
+        );
+        
+        let totalDiffMinutes = 0;
+        if (logResponse.ok) {
+          const logs = await logResponse.json();
+          totalDiffMinutes = logs.reduce((sum, log) => {
+            const inputMinutes = log.input_minutes === null ? 10 : log.input_minutes;
+            const diff = log.added_minutes - inputMinutes;
+            return sum + (diff > 0 ? diff : 0);
+          }, 0);
+        }
+
+        // 通常の利用時間データを取得
         const usageResponse = await fetch(
           `${SUPABASE_URL}/rest/v1/rpc/get_time_ranges_by_user`,
           {
@@ -571,12 +589,21 @@
           graphsContainer.innerHTML = '';
 
           if (Array.isArray(usageData) && usageData.length > 0) {
+            let totalUsedMinutes = 0;
+            
             for (const row of usageData) {
               let timeRanges = row.time_ranges;
               if (typeof timeRanges === 'string') {
                 timeRanges = JSON.parse(timeRanges);
               }
               timeRanges = mergeTimeRanges(timeRanges);
+              
+              // PCごとの利用時間を計算
+              timeRanges.forEach(rangeStr => {
+                const { start, end } = parseTimeRange(rangeStr);
+                totalUsedMinutes += (end - start);
+              });
+              
               const pcName = await getPcName(row.pc_id);
               const timeline = createTimelineFromRanges(pcName, timeRanges, row.activity_count);
               
@@ -590,7 +617,8 @@
               if (logResponse.ok) {
                 const logs = await logResponse.json();
                 logs.forEach(log => {
-                  const diff = log.added_minutes - log.input_minutes;
+                  const input_minutes = log.input_minutes || 10;
+                  const diff = log.added_minutes - input_minutes;
                   if (diff > 0) {
                     const createdAt = new Date(log.created_at_jst);
                     createdAt.setHours(createdAt.getHours() - 9); // JSTからUTCに変換
@@ -613,11 +641,13 @@
                     if (adjustedEnd > adjustedStart) {
                       const timeSegment = document.createElement('div');
                       timeSegment.className = 'time-segment';
-                      timeSegment.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
-                      timeSegment.style.left = '25%';
-                      timeSegment.style.right = '25%';
+                      //timeSegment.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';  // 赤色オーバーレイ
+                      timeSegment.style.backgroundColor = '#2a2a2a';  // ソリッド（上書）
+                      timeSegment.style.left = '0%';
+                      timeSegment.style.right = '0%';
                       timeSegment.style.position = 'absolute';
-                      
+                      timeSegment.style.zIndex = '3'; // 赤色セグメントは最背面
+
                       const topPercent = ((adjustedStart - startDisplayMinutes) / totalDisplayMinutes) * 100;
                       const heightPercent = ((adjustedEnd - adjustedStart) / totalDisplayMinutes) * 100;
                       
@@ -639,6 +669,10 @@
               
               graphsContainer.appendChild(timeline);
             }
+            
+            // 総利用時間から差分を引いた時間を表示
+            const adjustedUsedMinutes = totalUsedMinutes - totalDiffMinutes;
+            totalViewLabel.textContent = `利用時間: ${adjustedUsedMinutes}分（調整前: ${totalUsedMinutes}分、差引: ${totalDiffMinutes}分）`;
           }
         }
 
@@ -687,18 +721,7 @@
         const diffData = diffDataArray[0] || {};
         
         // 分析サマリーを表示
-        totalViewLabel.textContent = `許可: ${totalData.total_time}分 (追加: ${totalData.total_added_minutes}分, ベース: ${totalData.default_time}分)`;
-
-        // 差分が正の場合：「超過してる」、負の場合：「許容」、0の場合はそのまま表示
-        let diffLabel = "";
-        if (diffData.time_difference > 0) {
-          diffLabel = `${diffData.time_difference}分（超過してる）`;
-        } else if (diffData.time_difference < 0) {
-          diffLabel = `${Math.abs(diffData.time_difference)}分（許容）`;
-        } else {
-          diffLabel = `${diffData.time_difference}分`;
-        }
-        totalExtensionLabel.textContent = `利用時間: ${diffData.unique_minutes_count}分, 差分: ${diffLabel}`;
+        totalExtensionLabel.textContent = `起動時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
         
       } catch (error) {
         console.error('Error:', error);

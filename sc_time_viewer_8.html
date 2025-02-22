@@ -541,6 +541,26 @@
       daySet.appendChild(dayContent);
       
       try {
+        // 当日の開始・終了時刻を設定
+        const startTime = dateStr + "T00:00:00";
+        const endTime = dateStr + "T23:59:59";
+        
+        // watch_time_logから差分を取得
+        const logResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${startTime}&created_at_jst=lte.${endTime}`,
+          {
+            headers: HEADERS
+          }
+        );
+        
+        if (logResponse.ok) {
+          const logs = await logResponse.json();
+          logs.forEach(log => {
+            const diff = log.added_minutes - log.input_minutes;
+            console.log(`${log.created_at_jst} ${dateStr}の差分: ${diff}分 input:${log.input_minutes}分 added:${log.added_minutes}分`);
+          });
+        }
+
         // リクエストペイロード形式
         const requestBody = {
           target_user_id: USER_ID,

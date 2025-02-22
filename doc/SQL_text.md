@@ -58,6 +58,7 @@ CREATE TABLE watch_time_log (
     user_id UUID NOT NULL,
     added_minutes INTEGER NOT NULL,
     memo TEXT,
+    input_minutes integer,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')
 );
@@ -536,4 +537,33 @@ SELECT * FROM analyze_time_difference(
     'user-123e4567-e89b-12d3-a456-111111111111'::uuid,
     '2024-02-15'
 );
+````
+
+#### 4.4 時間帯ごとの許可状態を返す関数
+
+````sql:doc/SQL_text.md
+CREATE OR REPLACE FUNCTION get_extension_time_ranges(
+  target_user_id UUID,
+  target_date DATE
+)
+RETURNS TABLE (
+  pc_id UUID,
+  time_ranges TEXT[]
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    wtl.pc_id,
+    array_agg(
+      to_char(wtl.created_at_jst - (wtl.added_minutes - wtl.input_minutes || ' minutes')::interval, 'HH24:MI') || 
+      '-' || 
+      to_char(wtl.created_at_jst, 'HH24:MI')
+    ) as time_ranges
+  FROM watch_time_log wtl
+  WHERE wtl.user_id = target_user_id
+    AND DATE(wtl.created_at_jst) = target_date
+    AND wtl.added_minutes > wtl.input_minutes
+  GROUP BY wtl.pc_id;
+END;
+$$ LANGUAGE plpgsql;
 ````

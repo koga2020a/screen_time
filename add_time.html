@@ -423,6 +423,9 @@
           }).replace(/(\d+):(\d+):(\d+)/, '$1時$2分 $3秒');
           
           let displayText = `${time}　　${log.added_minutes}分追加`;
+          if (log.input_minutes !== log.added_minutes) {
+            displayText += `（入力: ${log.input_minutes}分）`;
+          }
           if (log.memo) {
             displayText += `　（${log.memo}）`;
           }
@@ -550,6 +553,7 @@
     async function submitTimeAdjustment() {
       let minutes = parseInt(document.getElementById('minutesInput').value);
       const memo = document.getElementById('memoInput').value.trim();
+      let inputMinutes = minutes; // 入力された元の値を保持
       
       if (isNaN(minutes)) {
         document.getElementById('message').innerHTML = `
@@ -588,14 +592,15 @@
 
       try {
         const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/rpc/add_watch_time_with_memo`,
+          `${SUPABASE_URL}/rest/v1/watch_time_log`,
           {
             method: 'POST',
             headers: HEADERS,
             body: JSON.stringify({
-              p_user_id: USER_ID,
-              p_added_minutes: minutes,
-              p_memo: memo || null
+              user_id: USER_ID,
+              added_minutes: minutes,
+              input_minutes: inputMinutes,
+              memo: memo || null
             })
           }
         );

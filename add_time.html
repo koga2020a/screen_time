@@ -426,7 +426,7 @@
     // イベントリスナーの設定
     document.getElementById('submitButton').addEventListener('click', submitTimeAdjustment);
 
-    // --- 新たに追加する関数: モーダルポップアップを表示する ---
+    // --- モーダルポップアップを表示する関数を更新 ---
     function showTimeAdjustmentModal(totalAddition, originalAddition) {
       return new Promise((resolve) => {
         const modal = document.createElement("div");
@@ -440,24 +440,74 @@
         modal.style.alignItems = "center";
         modal.style.justifyContent = "center";
         modal.style.zIndex = "1000";
+
+        // モーダル外クリックのイベントリスナー追加
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            document.body.removeChild(modal);
+            resolve(null);
+          }
+        });
         
         const modalContent = document.createElement("div");
-        modalContent.style.backgroundColor = "#fff";
+        modalContent.className = "modal-content";
         modalContent.style.padding = "20px";
         modalContent.style.borderRadius = "8px";
         modalContent.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+        modalContent.style.transition = "background-color 0.3s, color 0.3s";
+        modalContent.style.width = "400px"; // モーダルウィンドウの横幅を400pxに設定
+
+        // ダークモード対応
+        if (document.body.classList.contains('dark-mode')) {
+          modalContent.style.backgroundColor = "#2d2d2d";
+          modalContent.style.color = "#e5e5e5";
+          modalContent.style.borderColor = "#444";
+        } else {
+          modalContent.style.backgroundColor = "#fff";
+          modalContent.style.color = "#000";
+          modalContent.style.borderColor = "#ddd";
+        }
+
         modalContent.innerHTML = `<p>超過分を加算して ${totalAddition} 分の追加できます。<br>どちらの追加を適用しますか？</p>`;
         
-        const btnTotal = document.createElement("button");
-        btnTotal.textContent = `${totalAddition}分追加`;
-        btnTotal.style.marginRight = "10px";
-        
-        const btnOriginal = document.createElement("button");
-        btnOriginal.textContent = `${originalAddition}分追加`;
-        btnOriginal.style.marginRight = "10px";
-        
-        const btnCancel = document.createElement("button");
-        btnCancel.textContent = "キャンセル";
+        const buttonContainer = document.createElement("div");
+        buttonContainer.style.display = "flex";
+        buttonContainer.style.gap = "10px";
+        buttonContainer.style.marginTop = "20px";
+        buttonContainer.style.justifyContent = "center";
+
+        const createButton = (text, type = 'default') => {
+          const btn = document.createElement("button");
+          btn.textContent = text;
+          btn.className = "btn";
+          btn.style.padding = "8px 16px";
+          btn.style.borderRadius = "4px";
+          btn.style.cursor = "pointer";
+          btn.style.transition = "all 0.3s ease";
+          btn.style.width = "200%";
+          
+          if (document.body.classList.contains('dark-mode')) {
+            switch(type) {
+              case 'total':
+                btn.style.backgroundColor = "#3b82f6"; // 水色
+                btn.style.color = "#ffffff";
+                break;
+              case 'cancel':
+                btn.style.backgroundColor = "#ef4444"; // 濃い赤色
+                btn.style.color = "#ffffff";
+                break;
+              default:
+                btn.style.backgroundColor = "#333";
+                btn.style.color = "#e5e5e5";
+                btn.style.borderColor = "#555";
+            }
+          }
+          return btn;
+        };
+
+        const btnTotal = createButton(`${totalAddition}分追加`, 'total');
+        const btnOriginal = createButton(`${originalAddition}分追加`);
+        const btnCancel = createButton("キャンセル", 'cancel');
         
         btnTotal.addEventListener("click", () => {
             document.body.removeChild(modal);
@@ -474,9 +524,10 @@
             resolve(null);
         });
         
-        modalContent.appendChild(btnTotal);
-        modalContent.appendChild(btnOriginal);
-        modalContent.appendChild(btnCancel);
+        buttonContainer.appendChild(btnTotal);
+        buttonContainer.appendChild(btnOriginal);
+        buttonContainer.appendChild(btnCancel);
+        modalContent.appendChild(buttonContainer);
         modal.appendChild(modalContent);
         document.body.appendChild(modal);
       });

@@ -721,7 +721,8 @@
         const diffData = diffDataArray[0] || {};
         
         // 分析サマリーを表示
-        totalExtensionLabel.textContent = `起動時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分`;
+        const diffStatus = diffData.time_difference <= 0 ? '(許容)' : '(超過)';
+        totalExtensionLabel.textContent = `起動時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分${diffStatus}`;
         
       } catch (error) {
         console.error('Error:', error);

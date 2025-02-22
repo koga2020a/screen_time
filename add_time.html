@@ -16,6 +16,13 @@
       align-items: center;
       margin-bottom: 15px;
     }
+
+    #memoInput {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100%;
+    }
     .card {
       background: white;
       border-radius: 8px;
@@ -97,6 +104,7 @@
       <h3>視聴時間の調整</h3>
       <div class="input-group">
         <input type="number" id="minutesInput" placeholder="分数">
+        <input type="text" id="memoInput" placeholder="メモ（任意）" style="flex: 1;">
         <button id="submitButton">追加/削減</button>
       </div>
       <div id="message"></div>
@@ -405,16 +413,21 @@
         logs.forEach(log => {
           const logElement = document.createElement('div');
           logElement.className = 'time-log-item';
-          // created_at_jst を日本時間に変換して表示（例：時刻部分のみ）
           const date = new Date(log.created_at_jst);
-          date.setHours(date.getHours() - 9); // JSTに調整
+          date.setHours(date.getHours() - 9);
           const time = date.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
             hourCycle: 'h24'
           }).replace(/(\d+):(\d+):(\d+)/, '$1時$2分 $3秒');
-          logElement.textContent = `${time}　　${log.added_minutes}分追加`;
+          
+          let displayText = `${time}　　${log.added_minutes}分追加`;
+          if (log.memo) {
+            displayText += `　（${log.memo}）`;
+          }
+          
+          logElement.textContent = displayText;
           logListElement.appendChild(logElement);
         });
         
@@ -535,8 +548,9 @@
 
     // --- submitTimeAdjustment 関数の変更版 ---
     async function submitTimeAdjustment() {
-      // 入力値を数値に変換（letに変更）
       let minutes = parseInt(document.getElementById('minutesInput').value);
+      const memo = document.getElementById('memoInput').value.trim();
+      
       if (isNaN(minutes)) {
         document.getElementById('message').innerHTML = `
           <div class="error">有効な数値を入力してください</div>
@@ -544,7 +558,6 @@
         return;
       }
 
-      // 正の数値の場合、超過時間があるかをチェックしてポップアップを表示
       if (minutes > 0) {
         const today = getTodayJST();
         const diffResponse = await fetch(
@@ -563,11 +576,9 @@
           const diffData = diffDataArray[0] || {};
           const timeDiff = diffData.time_difference || 0;
           if (timeDiff > 0) {
-            // 例：入力が 5 分で 2 分超過の場合 → 5+2=7 分の選択肢を提示
             const totalAddition = minutes + timeDiff;
             const chosenMinutes = await showTimeAdjustmentModal(totalAddition, minutes);
             if (chosenMinutes === null) {
-              // キャンセルが選択された場合は処理中断
               return;
             }
             minutes = chosenMinutes;
@@ -576,15 +587,15 @@
       }
 
       try {
-        // Supabase のテーブル watch_time_log へデータを登録
         const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/watch_time_log`,
+          `${SUPABASE_URL}/rest/v1/rpc/add_watch_time_with_memo`,
           {
             method: 'POST',
             headers: HEADERS,
             body: JSON.stringify({
-              user_id: USER_ID,
-              added_minutes: minutes
+              p_user_id: USER_ID,
+              p_added_minutes: minutes,
+              p_memo: memo || null
             })
           }
         );
@@ -595,8 +606,8 @@
           <div class="success">時間調整を登録しました</div>
         `;
         document.getElementById('minutesInput').value = '';
+        document.getElementById('memoInput').value = '';
 
-        // 画面を更新
         await displayPCInfo();
         await displayTimeLog();
       } catch (error) {

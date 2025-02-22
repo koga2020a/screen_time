@@ -55,10 +55,11 @@ CREATE TABLE users_watch_time (
 -- 【watch_time_log テーブル】
 -- ユーザーの追加視聴時間を記録するテーブルです。
 CREATE TABLE watch_time_log (
-    user_id UUID NOT NULL,  -- ユーザー識別子
-    added_minutes INTEGER NOT NULL,  -- 追加で設定された視聴時間（分）
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,  -- 作成時刻 (UTC)
-    created_at_jst TIMESTAMPTZ DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')  -- 作成時刻 (JST)
+    user_id UUID NOT NULL,
+    added_minutes INTEGER NOT NULL,
+    memo TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at_jst TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'JST')
 );
 ````
 

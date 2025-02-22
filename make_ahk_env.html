@@ -35,10 +35,7 @@
     <!-- PC選択 -->
     <div class="input-group">
       <label for="pcIdSelect">PC:</label>
-      <select id="pcIdSelect">
-        <option value="other">その他</option>
-      </select>
-      <input type="text" id="pcIdOther" placeholder="その他のPC ID" style="display:none;">
+      <select id="pcIdSelect"></select>
     </div>
     
     <!-- ディレクトリ入力欄 -->
@@ -47,7 +44,7 @@
       <input type="text" id="dirInput" value="c:\src\screen_time">
     </div>
     
-    <button id="downloadEnvButton">.env生成</button>
+    <button id="downloadEnvButton" disabled>.env生成</button>
     <div id="message"></div>
   </div>
 
@@ -133,24 +130,39 @@
         }
 
         const pcSelect = document.getElementById('pcIdSelect');
-        // 既存のオプションをクリア（「その他」は残す）
-        pcSelect.innerHTML = '<option value="other">その他</option>';
+        const downloadButton = document.getElementById('downloadEnvButton');
+        
+        // 既存のオプションをクリア
+        pcSelect.innerHTML = '';
+
+        // PCリストが空の場合
+        if (!Array.isArray(data) || data.length === 0) {
+          document.getElementById('message').innerHTML =
+            `<div class="error">PCが登録されていません。先にPCを登録してください。</div>`;
+          downloadButton.disabled = true;
+          return;
+        }
 
         // 取得したPCリストを追加
-        if (Array.isArray(data)) {
-          data.forEach(pc => {
-            const option = document.createElement('option');
-            option.value = pc.pc_id;
-            option.textContent = pc.pc_name;
-            pcSelect.insertBefore(option, pcSelect.lastChild);
-          });
-        } else {
-          throw new Error('Unexpected data structure');
-        }
+        data.forEach((pc, index) => {
+          const option = document.createElement('option');
+          option.value = pc.pc_id;
+          option.textContent = pc.pc_name;
+          pcSelect.appendChild(option);
+          
+          // 最初のPCを選択
+          if (index === 0) {
+            pcSelect.value = pc.pc_id;
+          }
+        });
+
+        // ボタンを有効化
+        downloadButton.disabled = false;
       } catch (error) {
         console.error('PCリスト取得エラー:', error);
         document.getElementById('message').innerHTML =
           `<div class="error">PCリストの取得に失敗しました: ${error.message}</div>`;
+        document.getElementById('downloadEnvButton').disabled = true;
       }
     }
 
@@ -196,9 +208,10 @@
 
         // .envの内容を生成
         const content = [
-          `screenTimeDir=${screenTimeDir}`,
+          //`screenTimeDir=${screenTimeDir}`,
           `user_id=${USER_ID}`,
           `user_id_ApiKey=${apiKey}`,
+          `pc_name=${await getPcName(pcId)}`,
           `pc_id=${pcId}`,
           `SUPABASE_URL=${SUPABASE_URL}`,
           `SUPABASE_API_KEY=${SUPABASE_KEY}`,
@@ -224,17 +237,6 @@
       }
     }
 
-    // 「その他」を選択した場合、PC ID入力欄を表示
-    document.getElementById('pcIdSelect').addEventListener('change', function() {
-      if (this.value === 'other') {
-        document.getElementById('pcIdOther').style.display = 'inline-block';
-      } else {
-        document.getElementById('pcIdOther').style.display = 'none';
-      }
-    });
-
-    document.getElementById('downloadEnvButton').addEventListener('click', downloadEnvFile);
-
     // ダークモード設定の取得と適用
     function applyDarkMode() {
       const isDarkMode = localStorage.getItem('darkMode') === 'true';
@@ -244,6 +246,15 @@
         document.body.classList.remove('dark-mode');
       }
     }
+
+    // getPcName関数の定義を修正
+    function getPcName(pcId) {
+      const pcSelect = document.getElementById('pcIdSelect');
+      const selectedOption = Array.from(pcSelect.options).find(option => option.value === pcId);
+      return selectedOption ? selectedOption.textContent : 'Unknown PC';
+    }
+
+    document.getElementById('downloadEnvButton').addEventListener('click', downloadEnvFile);
   </script>
 </body>
 </html>

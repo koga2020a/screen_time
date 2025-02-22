@@ -569,8 +569,18 @@ def main():
         help="指定したPC (UUIDまたはpc_name) の利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。",
         parents=[parent_parser]
     )
-    parser_pc_usage.add_argument("user_id", help="ユーザID (UUID)")
-    parser_pc_usage.add_argument("pc_identifier", help="PC ID (UUID) もしくは user_pcs の pc_name")
+    parser_pc_usage.add_argument(
+        "user_id",
+        nargs="?",
+        default=None,
+        help="ユーザID (UUID)（省略時は --user-id オプションまたは環境変数 user_id を使用）"
+    )
+    parser_pc_usage.add_argument(
+        "pc_identifier",
+        nargs="?",
+        default=None,
+        help="PC ID (UUID) もしくは user_pcs の pc_name（省略時は --pc-id オプションまたは環境変数 pc_id を使用）"
+    )
     parser_pc_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
     
     parser_allowed_time = subparsers.add_parser(
@@ -679,8 +689,15 @@ def main():
         output_result(result, args.output)
     
     elif args.command == "get-pc-usage":
-        # user_idとpc_identifierは必須位置引数として受け取る
-        result = get_pc_usage(args.user_id, args.pc_identifier, return_result=True)
+        user_id = args.user_id or default_user_id
+        pc_identifier = args.pc_identifier or args.pc_id or default_pc_id
+        if not user_id:
+            print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
+            sys.exit(1)
+        if not pc_identifier:
+            print("エラー: PC IDが指定されていません。コマンドライン引数、--pc-id オプション、または環境変数 pc_id を設定してください。")
+            sys.exit(1)
+        result = get_pc_usage(user_id, pc_identifier, return_result=True)
         output_result(result, args.output)
     
     elif args.command == "get-allowed-time":

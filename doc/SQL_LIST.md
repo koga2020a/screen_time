@@ -6,19 +6,24 @@
 - **pc_activity_2**: PC利用記録テーブル
   - PC識別子、ユーザー識別子、利用時間（分）を管理
   - JST対応のタイムスタンプカラムを保持
+  - 同一日付・PC・ユーザー・分数の重複を防止するユニーク制約
 
 - **users_watch_time**: ユーザー視聴時間設定テーブル
   - デフォルト視聴時間（分）を管理
   - APIキー認証機能を追加
+  - PCの名前を管理
 
 - **watch_time_log**: 視聴時間ログテーブル
   - 追加視聴時間の記録を管理
+  - 入力された元の分数も保持
+  - メモ機能を追加
   - JST対応のタイムスタンプを保持
 
 ### 1.2 認証関連テーブル
 - **auth_test_user_records**: ユーザー認証テストテーブル
   - ユーザーIDと最終ログイン時刻を管理
   - Row Level Security (RLS) 対応
+  - auth.usersテーブルとの外部キー制約
 
 ## 2. ストアドファンクション
 
@@ -27,17 +32,19 @@
 - **append_pc_activity**: PC利用記録の追加
 - **delete_pc_activity**: PC利用記録の削除
 - **update_jst_timestamp**: JSTタイムスタンプの更新
+- **get_pc_name**: PC識別子からPC名を取得
 
 ### 2.2 分析機能
-- **get_total_watch_time**: 総視聴時間の計算
+- **get_total_watch_time**: 総視聴時間の計算（デフォルト時間＋追加時間）
 - **get_daily_activity_count**: 日別活動カウント取得
 - **analyze_time_difference**: 利用時間と設定時間の差分分析
 - **get_time_ranges_by_pc**: PC別の利用時間帯取得
-- **get_time_ranges_by_user**: ユーザー別の利用時間帯取得
+- **get_time_ranges_by_user**: ユーザー別の利用時間帯取得（時間帯の結合処理を含む）
 
 ### 2.3 API認証機能
 - **validate_user_api_key_ext**: APIキーの検証
 - **get_user_api_key**: ユーザーのAPIキー取得
+- **get_default_time_by_api**: APIキー認証付きデフォルト時間取得
 - 各基本機能のAPIキー認証付きラッパー関数群
 
 ## 3. トリガー
@@ -49,6 +56,7 @@
 - Row Level Security (RLS) ポリシー
 - APIキーによる認証システム
 - ユーザー権限の適切な設定
+- パスワードリセット機能の実装
 
 関連するコードブロックの参照:
 

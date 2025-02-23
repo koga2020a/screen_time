@@ -280,8 +280,13 @@ def insert_watch_log(user_id, added_minutes, return_result=False):
     if not is_valid_uuid(user_id):
         result = f"エラー: user_id ({user_id}) は正しいUUID形式ではありません"
         return result if return_result else print(result)
-    url = f"{SUPABASE_URL}/rest/v1/watch_time_log"
-    data = {"user_id": user_id, "added_minutes": added_minutes}
+    
+    url = f"{SUPABASE_URL}/rest/v1/rpc/insert_watch_time_log"
+    data = {
+        "p_user_id": user_id,
+        "p_added_minutes": added_minutes,
+        "p_api_key": api_key
+    }
     response = requests.post(url, json=data, headers=HEADERS)
     if response.text.strip():
         try:

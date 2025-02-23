@@ -558,9 +558,15 @@
 
         // まず追加時間の差分の総計を取得
         const logResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${dateStr}T00:00:00&created_at_jst=lte.${dateStr}T23:59:59`,
+          `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
           {
-            headers: HEADERS
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID,
+              p_start_time: `${dateStr}T00:00:00Z`,
+              p_end_time: `${dateStr}T23:59:59Z`
+            })
           }
         );
         
@@ -608,9 +614,15 @@
               const timeline = createTimelineFromRanges(pcName, timeRanges, row.activity_count);
               
               const logResponse = await fetch(
-                `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${dateStr}T00:00:00&created_at_jst=lte.${dateStr}T23:59:59`,
+                `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
                 {
-                  headers: HEADERS
+                  method: 'POST',
+                  headers: HEADERS,
+                  body: JSON.stringify({
+                    p_user_id: USER_ID,
+                    p_start_time: `${dateStr}T00:00:00Z`,
+                    p_end_time: `${dateStr}T23:59:59Z`
+                  })
                 }
               );
               

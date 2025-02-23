@@ -1,4 +1,3 @@
-
 | 関数名                         | 引数                                                                                                                                       | 内部で利用しているテーブル                                                  |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | **minutes_to_time**            | `minutes INTEGER`                                                                                                                          | なし                                                                      |
@@ -162,7 +161,7 @@ CREATE OR REPLACE FUNCTION delete_pc_activity(
   p_minutes int[]
 ) RETURNS SETOF pc_activity_2 AS $$
 DECLARE
-  base_date date := (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date;  -- 現在の JST 日付
+  base_date date := (CURRENT_TIMESTAMP AT TIME ZONE 'JST')::date;
 BEGIN
   RETURN QUERY
   DELETE FROM pc_activity_2
@@ -172,7 +171,7 @@ BEGIN
     AND minutes_time_jst IN (SELECT unnest(p_minutes))  -- 指定された分数のレコードを削除
   RETURNING *;  -- 削除されたレコードを返す
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ````
 
 #### 2.4 利用時間・視聴時間の集計・解析関数
@@ -217,7 +216,7 @@ BEGIN
     FROM added_time at
     CROSS JOIN default_watch_time dwt;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ````
 
 ##### 2.4.2 **get_daily_activity_count**
@@ -240,7 +239,7 @@ BEGIN
     WHERE user_id = target_user_id
       AND DATE(created_at_jst) = target_date;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ````
 
 ##### 2.4.3 **analyze_time_difference**
@@ -277,7 +276,7 @@ BEGIN
     FROM activity_minutes
     CROSS JOIN watch_time_total;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ````
 
 #### 2.5 PC利用時間分布取得系の関数
@@ -294,7 +293,7 @@ CREATE OR REPLACE FUNCTION get_time_ranges_by_pc(
     target_date DATE
 )
 RETURNS TABLE (
-    time_range TEXT  -- 利用時間帯（例："0930-1015"）
+    time_range TEXT
 ) AS $$
 WITH grouped_times AS (
     -- 各レコードの分数から、連続性の判定用グループ番号を計算
@@ -319,7 +318,7 @@ WITH grouped_times AS (
 -- 分を "HHMM" 文字列に変換して、範囲を連結する
 SELECT minutes_to_time(range_start) || '-' || minutes_to_time(range_end) AS time_range
 FROM ranges;
-$$ LANGUAGE SQL;
+$$ LANGUAGE SQL SECURITY DEFINER;
 ````
 
 ##### 2.5.2 **get_time_ranges_by_user**
@@ -333,9 +332,9 @@ CREATE OR REPLACE FUNCTION get_time_ranges_by_user(
     target_date DATE
 )
 RETURNS TABLE (
-    pc_id UUID,             -- PC の識別子
-    activity_count BIGINT,  -- 当該 PC でのユニークな活動分数の数
-    time_ranges TEXT[]      -- 各連続した利用区間を示す文字列配列
+    pc_id UUID,
+    activity_count BIGINT,
+    time_ranges TEXT[]
 ) AS $$
 WITH ordered_data AS (
     -- PC ごとに各活動分数とその直前の値を取得
@@ -382,7 +381,7 @@ WITH ordered_data AS (
 SELECT a.pc_id, a.activity_count, f.time_ranges
 FROM activity_counts a
 JOIN formatted f ON a.pc_id = f.pc_id;
-$$ LANGUAGE SQL;
+$$ LANGUAGE SQL SECURITY DEFINER;
 ````
 
 #### 2.6 連続活動レコードを挿入する関数: **insert_continuous_activity**
@@ -567,3 +566,134 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ````
+
+``` sql:doc
+-- Function to insert watch time log with authentication check
+-- insert_watch_time_log関数：
+-- セッション認証とAPIキー認証の両方に対応
+-- 時間の追加とメモの記録が可能
+-- JSTでの作成時刻を自動設定
+-- input_minutesのオプショナル対応
+CREATE OR REPLACE FUNCTION insert_watch_time_log(
+    p_user_id UUID,                -- ユーザーID
+    p_added_minutes INTEGER,       -- 追加する時間（分）
+    p_input_minutes INTEGER DEFAULT NULL,  -- 入力された時間（分）
+    p_memo TEXT DEFAULT NULL,      -- メモ
+    p_api_key TEXT DEFAULT NULL    -- APIキー（APIアクセス用）
+)
+RETURNS SETOF watch_time_log
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_is_authorized BOOLEAN;
+    v_created_at_jst TIMESTAMP WITH TIME ZONE;
+BEGIN
+    -- 認証チェック
+    v_is_authorized := (
+        (auth.uid() = p_user_id) 
+        OR 
+        (
+            p_api_key IS NOT NULL 
+            AND 
+            EXISTS (
+                SELECT 1 
+                FROM users_watch_time 
+                WHERE user_id = p_user_id 
+                AND api_key = p_api_key
+            )
+        )
+    );
+
+    IF NOT v_is_authorized THEN
+        RAISE EXCEPTION 'Unauthorized access';
+    END IF;
+
+    -- JSTの現在時刻を取得（UTCからJSTに9時間足す）
+    v_created_at_jst := (NOW() AT TIME ZONE 'UTC') + INTERVAL '9 hours';
+
+    -- レコードを挿入して返す
+    RETURN QUERY
+    INSERT INTO watch_time_log (
+        user_id,
+        added_minutes,
+        input_minutes,
+        memo,
+        created_at,
+        created_at_jst
+    )
+    VALUES (
+        p_user_id,
+        p_added_minutes,
+        COALESCE(p_input_minutes, p_added_minutes),
+        p_memo,
+        NOW(),  -- UTCのタイムスタンプ
+        v_created_at_jst  -- JSTのタイムスタンプ
+    )
+    RETURNING *;
+END;
+$$;
+
+
+
+
+-- get_watch_time_logs関数：
+-- 指定期間のログを取得
+-- セッション認証とAPIキー認証の両方に対応
+-- 作成日時でソート
+-- Function to get watch time logs with authentication check
+CREATE OR REPLACE FUNCTION get_watch_time_logs(
+    p_user_id UUID,                -- ユーザーID
+    p_start_time TIMESTAMP WITH TIME ZONE,  -- 開始時刻
+    p_end_time TIMESTAMP WITH TIME ZONE,    -- 終了時刻
+    p_api_key TEXT DEFAULT NULL    -- APIキー（APIアクセス用）
+)
+RETURNS SETOF watch_time_log
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_is_authorized BOOLEAN;
+BEGIN
+    -- 認証チェック
+    v_is_authorized := (
+        (auth.uid() = p_user_id)
+        OR
+        (
+            p_api_key IS NOT NULL 
+            AND 
+            EXISTS (
+                SELECT 1 
+                FROM users_watch_time 
+                WHERE user_id = p_user_id 
+                AND api_key = p_api_key
+            )
+        )
+    );
+
+    IF NOT v_is_authorized THEN
+        RAISE EXCEPTION 'Unauthorized access';
+    END IF;
+
+    -- ログを取得して返す
+    -- 検索条件の時刻をJSTで比較
+    RETURN QUERY
+    SELECT *
+    FROM watch_time_log
+    WHERE user_id = p_user_id
+    AND created_at >= p_start_time AT TIME ZONE 'UTC'  -- UTCでの比較に変更
+    AND created_at < p_end_time AT TIME ZONE 'UTC'     -- UTCでの比較に変更
+    ORDER BY created_at_jst DESC;
+END;
+$$;
+
+-- RLSポリシーの設定
+ALTER TABLE watch_time_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY watch_time_log_select_policy ON watch_time_log
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY watch_time_log_insert_policy ON watch_time_log
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);

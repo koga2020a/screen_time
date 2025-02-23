@@ -392,15 +392,26 @@
     // 時間調整ログを表示する関数
     async function displayTimeLog() {
       try {
-        const today = getTodayJST();
-        // 当日開始・終了時刻（ISO フォーマット：YYYY-MM-DDT00:00:00 / YYYY-MM-DDT23:59:59）
-        const startTime = today + "T00:00:00";
-        const endTime = today + "T23:59:59";
+        // 本日の日付範囲をJSTで取得
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setDate(endOfDay.getDate() + 1);
+
+        // UTCに変換
+        const startTime = startOfDay.toISOString();
+        const endTime = endOfDay.toISOString();
+
         const response = await fetch(
-          // watch_time_log テーブルから当日のログを取得するクエリ例
-          `${SUPABASE_URL}/rest/v1/watch_time_log?user_id=eq.${USER_ID}&created_at_jst=gte.${startTime}&created_at_jst=lte.${endTime}`,
+          `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
           {
-            headers: HEADERS
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID,
+              p_start_time: startTime,
+              p_end_time: endTime
+            })
           }
         );
         
@@ -592,15 +603,15 @@
 
       try {
         const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/watch_time_log`,
+          `${SUPABASE_URL}/rest/v1/rpc/insert_watch_time_log`,
           {
             method: 'POST',
             headers: HEADERS,
             body: JSON.stringify({
-              user_id: USER_ID,
-              added_minutes: minutes,
-              input_minutes: inputMinutes,
-              memo: memo || null
+              p_user_id: USER_ID,
+              p_added_minutes: minutes,
+              p_input_minutes: inputMinutes,
+              p_memo: memo || null
             })
           }
         );

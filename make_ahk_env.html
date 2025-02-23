@@ -38,12 +38,6 @@
       <select id="pcIdSelect"></select>
     </div>
     
-    <!-- ディレクトリ入力欄 -->
-    <div class="input-group">
-      <label for="dirInput">保存先:</label>
-      <input type="text" id="dirInput" value="c:\src\screen_time">
-    </div>
-    
     <button id="downloadEnvButton" disabled>.env生成</button>
     <div id="message"></div>
   </div>
@@ -204,11 +198,8 @@
         if (!response.ok) throw new Error('APIキーの取得に失敗しました');
         const apiKey = await response.json() || 'AAA';  // APIキーが未設定の場合はデフォルト値
 
-        const screenTimeDir = document.getElementById('dirInput').value.trim();
-
         // .envの内容を生成
         const content = [
-          //`screenTimeDir=${screenTimeDir}`,
           `user_id=${USER_ID}`,
           `user_id_ApiKey=${apiKey}`,
           `pc_name=${await getPcName(pcId)}`,

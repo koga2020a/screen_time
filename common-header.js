@@ -11,11 +11,11 @@
       <a href="sc_time_viewer_8.html" style="color:white; margin-right:15px; text-decoration:none;">
         <i class="fas fa-chart-line"></i> PC使用状況タイムライン
       </a>
+      <a href="add_time.html" style="color:white; margin-right:15px; text-decoration:none;">
+        <i class="fas fa-clock"></i> PC許可時間追加
+      </a>
       <a href="set_use_time.html" style="color:white; margin-right:15px; text-decoration:none;">
         <i class="fas fa-keyboard"></i> PCアクティビティ登録
-      </a>
-      <a href="add_time.html" style="color:white; margin-right:15px; text-decoration:none;">
-        <i class="fas fa-clock"></i> PC視聴時間修正
       </a>
       <div class="dropdown" style="display:inline-block; position:relative;">
         <a href="#" style="color:white; text-decoration:none;">
@@ -47,7 +47,7 @@
   const customStyle = document.createElement('style');
   customStyle.textContent = `
     #commonHeader nav a {
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transition: all 0.3s ease;
       display: inline-block;
       position: relative;
       padding: 5px 10px;
@@ -55,33 +55,7 @@
     }
     
     #commonHeader nav a:hover {
-      transform: translateY(-6px) scale(1.05);
-      text-shadow: 0 0 8px rgba(255,255,255,0.5);
-      box-shadow: 0 10px 20px rgba(255,255,255,0.1), 0 6px 6px rgba(0,0,0,0.08);
-    }
-    
-    #commonHeader nav a:hover i {
-      transform: scale(1.2);
-      transition: transform 0.3s ease;
-    }
-    
-    #commonHeader nav a::after {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 0;
-      width: 100%;
-      height: 0;
-      background: rgba(255,255,255,0.3);
-      transition: height 0.3s ease;
-      z-index: -1;
-      border-radius: 4px;
-      opacity: 0;
-    }
-    
-    #commonHeader nav a:hover::after {
-      height: 100%;
-      opacity: 0.2;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
     }
     
     /* ドロップダウンメニューのスタイル */
@@ -279,7 +253,7 @@
       }
       hoverTimeoutId = setTimeout(() => {
         dropdownContent.style.display = 'block';
-      }, 500); // 0.5秒後に表示
+      }, 300); // 0.3秒後に表示
     });
 
     dropdown.addEventListener('mouseleave', () => {

@@ -8,15 +8,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <link rel="stylesheet" href="common.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="common-header.js"></script>
   <style>
     /* ローカルのスタイルを削除し、common.cssに依存する */
   </style>
 </head>
 <body>
-  <!-- 共通ヘッダーの読み込み（直接fetchせず、common-header.js を利用） -->
   <div id="commonHeader"></div>
-  <script src="common-header.js"></script>
-  <script src="common.js"></script>
 
   <div class="card">
     <h3>PCアクティビティ登録/削除</h3>
@@ -61,15 +59,10 @@
     let supabaseClient;
     let USER_ID = null;
 
-    window.onload = function() {
-      // ダークモード設定の読み込みと適用（common.jsの関数を使用）
-      applyDarkMode();
-
+    window.onload = async function() {
       const urlParams = new URLSearchParams(window.location.search);
-      // URL パラメータから SUPABASE_KEY を取得（なければデフォルト値を利用）
       const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
-      
-      // HEADERS のグローバル変数の設定
+
       HEADERS = {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -84,8 +77,20 @@
         }
       });
 
-      // セッションチェックと初期化
-      initializeWithSession();
+      // セッション初期化を待機
+      await initializeWithSession();
+
+      // イベントリスナーの設定を確実に行う
+      const registerButton = document.getElementById('registerActivityButton');
+      const deleteButton = document.getElementById('deleteActivityButton');
+      
+      if (registerButton) {
+        registerButton.addEventListener('click', registerActivity);
+      }
+      
+      if (deleteButton) {
+        deleteButton.addEventListener('click', deleteActivity);
+      }
 
       // 時刻入力欄の初期値設定
       const timeInput = document.getElementById('timeInput');
@@ -97,24 +102,14 @@
     };
 
     async function initializeWithSession() {
-      const {
-        data: { session },
-        error
-      } = await supabaseClient.auth.getSession();
-      
-      if (error) {
-        console.error('セッション取得エラー:', error);
+      const { data: { user }, error } = await supabaseClient.auth.getUser();
+      if (error || !user) {
+        console.error('ユーザー情報取得エラー:', error);
         window.location.href = 'auth_test_login.html';
         return;
       }
-      
-      if (session) {
-        USER_ID = session.user.id;
-        console.log('ユーザーID取得:', USER_ID);
-      } else {
-        console.log('未ログイン状態');
-        window.location.href = 'auth_test_login.html';
-      }
+      USER_ID = user.id;
+      console.log('ユーザーID取得:', USER_ID);
     }
 
     // 時刻入力欄および形式認識表示更新用の関数
@@ -300,9 +295,6 @@
           `<div class="error">エラー: ${error.message}</div>`;
       }
     }
-    
-    document.getElementById('registerActivityButton').addEventListener('click', registerActivity);
-    document.getElementById('deleteActivityButton').addEventListener('click', deleteActivity);
     
     // 時刻入力欄および形式認識表示の初期化
     window.addEventListener('load', () => {

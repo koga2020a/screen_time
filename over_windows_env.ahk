@@ -18,6 +18,7 @@ envVars := ReadEnvFile(A_ScriptDir "\.env")
 global user_id := envVars["user_id"]
 global user_id_ApiKey := envVars["user_id_ApiKey"]
 global pc_id := envVars["pc_id"]
+global pc_name := envVars["pc_name"]
 
 global isAbleWatchFile := A_ScriptDir "\is_able_watch.txt"
 global scResultTimeFile := A_ScriptDir "\sc_result_time.txt"
@@ -100,7 +101,7 @@ CheckWatchTime:
     FileRead, watchTimeContent_hover, %scResultTimeFile%_hover
     watchTimeContent_hover := Trim(watchTimeContent_hover)
 
-    Menu, Tray, Tip, % "Ž‹’®ŽžŠÔ: " watchTimeContent_hover
+    Menu, Tray, Tip, % "PC : " pc_name  " | Ž‹’®ŽžŠÔ: " watchTimeContent_hover
 return
 
 IsLidClosed() {

@@ -104,6 +104,24 @@ CheckWatchTime:
 return
 
 IsLidClosed() {
+    ; PowerShell ‚ğÀs‚µ‚ÄŠW‚Ìó‘Ô‚ğæ“¾
+    RunWait, cmd /c PowerShell -Command "$status = (Get-WmiObject -Namespace root\WMI -Class WmiMonitorBasicDisplayParams).Active; if ($status -eq $true) { 'Lid Open' } else { 'Lid Closed' }" > %A_ScriptDir%\lid_status.txt, , Hide
+    FileRead, lidStatus, %A_ScriptDir%\lid_status.txt
+    lidStatus := Trim(lidStatus)
+    
+    if (lidStatus ~= "Lid Open") {
+        return False  ; ŠW‚ªŠJ‚¢‚Ä‚¢‚é
+    }
+    if (lidStatus ~= "Lid Closed") {
+        return True  ; ŠW‚ª•Â‚¶‚Ä‚¢‚é
+    }
+    return False  ; ŠW‚ªŠJ‚¢‚Ä‚¢‚é‚Æ‚İ‚È‚·
+
+
+
+
+
+    
     FormatTime, currentTime,, yyyy/MM/dd HH:mm:ss
     
     ; WmiMonitorBasicDisplayParams‚Å‰æ–Ê‚Ìó‘Ô‚ğŠm”F

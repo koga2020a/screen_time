@@ -573,35 +573,35 @@
         return;
       }
 
-      try {
-        if (minutes > 0) {
-          const today = getTodayJST();
-          const diffResponse = await fetch(
-            `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
-            {
-              method: 'POST',
-              headers: HEADERS,
-              body: JSON.stringify({
-                target_user_id: USER_ID,
-                target_date: today
-              })
+      if (minutes > 0) {
+        const today = getTodayJST();
+        const diffResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              target_user_id: USER_ID,
+              target_date: today
+            })
+          }
+        );
+        if (diffResponse.ok) {
+          const diffDataArray = await diffResponse.json();
+          const diffData = diffDataArray[0] || {};
+          const timeDiff = diffData.time_difference || 0;
+          if (timeDiff > 0) {
+            const totalAddition = minutes + timeDiff;
+            const chosenMinutes = await showTimeAdjustmentModal(totalAddition, minutes);
+            if (chosenMinutes === null) {
+              return;
             }
-          );
-          if (diffResponse.ok) {
-            const diffDataArray = await diffResponse.json();
-            const diffData = diffDataArray[0] || {};
-            const timeDiff = diffData.time_difference || 0;
-            if (timeDiff > 0) {
-              const totalAddition = minutes + timeDiff;
-              const chosenMinutes = await showTimeAdjustmentModal(totalAddition, minutes);
-              if (chosenMinutes === null) {
-                return;
-              }
-              minutes = chosenMinutes;
-            }
+            minutes = chosenMinutes;
           }
         }
+      }
 
+      try {
         const response = await fetch(
           `${SUPABASE_URL}/rest/v1/rpc/insert_watch_time_log`,
           {
@@ -626,7 +626,6 @@
 
         await displayPCInfo();
         await displayTimeLog();
-
       } catch (error) {
         console.error('Error:', error);
         document.getElementById('message').innerHTML = `

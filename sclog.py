@@ -12,9 +12,10 @@ import urllib.parse
 # .envファイルから環境変数をロード
 load_dotenv()
 
+# グローバル変数として環境変数を設定
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
-USER_API_KEY = os.getenv("USER_API_KEY")  # 追加: ユーザーのAPI key
+USER_API_KEY = os.getenv("user_id_ApiKey")  # .envファイルの変数名に合わせる
 
 HEADERS = {
     "apikey": SUPABASE_API_KEY,
@@ -45,7 +46,7 @@ def get_pc_id_from_user(user_id, pc_identifier):
     try:
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_pc_id_by_name_and_user"
         payload = {
-            "p_api_key": api_key,
+            "p_api_key": USER_API_KEY,
             "p_user_id": user_id,
             "p_pc_name": pc_identifier
         }
@@ -68,7 +69,7 @@ def get_pc_name_from_pc_id(user_id, pc_id):
     try:
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_pc_name_by_user"
         payload = {
-            "p_api_key": api_key,
+            "p_api_key": USER_API_KEY,
             "p_user_id": user_id,
             "p_pc_id": pc_id
         }
@@ -89,7 +90,7 @@ def check_user_exists(user_id):
     try:
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/check_user_exists_by_api"
         payload = {
-            "p_api_key": api_key,
+            "p_api_key": USER_API_KEY,
             "p_user_id": user_id
         }
         response = requests.post(url_rpc, headers=HEADERS, json=payload)
@@ -180,7 +181,7 @@ def get_pc_activity_minutes_by_pc(user_id, pc_id, start_time, end_time):
     try:
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_pc_activity_minutes_by_pc_and_api"
         payload = {
-            "p_api_key": api_key,
+            "p_api_key": USER_API_KEY,
             "p_user_id": user_id,
             "p_pc_id": pc_id,
             "p_start_time": start_time,
@@ -231,7 +232,7 @@ def get_total_usage_minutes(user_id, start_time, end_time):
     try:
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_usage_minutes_by_api"
         payload = {
-            "p_api_key": api_key,
+            "p_api_key": USER_API_KEY,
             "p_user_id": user_id,
             "p_start_time": start_time,
             "p_end_time": end_time
@@ -280,13 +281,8 @@ def insert_watch_log(user_id, added_minutes, return_result=False):
     if not is_valid_uuid(user_id):
         result = f"エラー: user_id ({user_id}) は正しいUUID形式ではありません"
         return result if return_result else print(result)
-    
-    url = f"{SUPABASE_URL}/rest/v1/rpc/insert_watch_time_log"
-    data = {
-        "p_user_id": user_id,
-        "p_added_minutes": added_minutes,
-        "p_api_key": api_key
-    }
+    url = f"{SUPABASE_URL}/rest/v1/watch_time_log"
+    data = {"user_id": user_id, "added_minutes": added_minutes}
     response = requests.post(url, json=data, headers=HEADERS)
     if response.text.strip():
         try:
@@ -419,7 +415,7 @@ def is_able_watch(user_id, return_result=False):
         # Supabase RPC 呼び出し URL (analyze_time_difference を利用)
         url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/analyze_time_difference"
         payload = {
-            "p_api_key": api_key,
+            "p_api_key": USER_API_KEY,
             "target_user_id": user_id,
             "target_date": target_date
         }
@@ -445,48 +441,64 @@ def is_able_watch(user_id, return_result=False):
         result = "E"
     return result if return_result else print(result)
 
-def get_default_time(user_id):
-    """users_watch_time テーブルから指定されたユーザーのdefault_timeを取得します。"""
-    try:
-        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_default_time_by_api"
-        payload = {
-            "p_api_key": api_key,
-            "p_user_id": user_id
-        }
-        response = requests.post(url_rpc, headers=HEADERS, json=payload)
-        
-        if response.status_code == 400 and "Invalid API key" in response.text:
-            return None
-            
-        if not response.text.strip():
-            return None
-            
-        return response.json()
-    except Exception:
-        return None
-
 def get_total_added_minutes(user_id, start_time, end_time):
     """指定された期間の追加視聴時間の合計を取得します。"""
     try:
-        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_added_minutes_by_api"
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_watch_time"
         payload = {
-            "p_api_key": api_key,
-            "p_user_id": user_id,
-            "p_start_time": start_time,
-            "p_end_time": end_time
+            "p_api_key": USER_API_KEY,
+            "target_user_id": user_id,
+            "target_date": datetime.fromisoformat(start_time).astimezone(JST).date().isoformat()
         }
         response = requests.post(url_rpc, headers=HEADERS, json=payload)
         
         if response.status_code == 400 and "Invalid API key" in response.text:
+            print("Error 1")
             return 0
             
         if not response.text.strip():
+            print('Error 2')
             return 0
             
-        return response.json()
+        data = response.json()
+        if not data or len(data) == 0:
+            print('Error 3')
+            return 0
+            
+        # get_total_watch_timeの戻り値から total_added_minutes を取得
+        print(data)
+        print( datetime.fromisoformat(start_time).astimezone(JST).date().isoformat())
+        return data[0].get('total_added_minutes', 0)
     except Exception:
+        print('Error 4')
         return 0
-    
+
+def get_default_time(user_id):
+    """users_watch_time テーブルから指定されたユーザーのdefault_timeを取得します。"""
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_total_watch_time"
+        payload = {
+            "p_api_key": USER_API_KEY,
+            "target_user_id": user_id,
+            "target_date": datetime.now(JST).date().isoformat()
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return None
+            
+        if not response.text.strip():
+            return None
+            
+        data = response.json()
+        if not data or len(data) == 0:
+            return None
+            
+        # get_total_watch_timeの戻り値から default_time を取得
+        return data[0].get('default_time', None)
+    except Exception:
+        return None
+
 def main():
     # .envファイルから設定値を読み込む
     default_user_id = os.getenv("user_id")
@@ -574,18 +586,8 @@ def main():
         help="指定したPC (UUIDまたはpc_name) の利用済み分数（重複は1分として）と利用時刻 (HH:MM形式) を取得します。",
         parents=[parent_parser]
     )
-    parser_pc_usage.add_argument(
-        "user_id",
-        nargs="?",
-        default=None,
-        help="ユーザID (UUID)（省略時は --user-id オプションまたは環境変数 user_id を使用）"
-    )
-    parser_pc_usage.add_argument(
-        "pc_identifier",
-        nargs="?",
-        default=None,
-        help="PC ID (UUID) もしくは user_pcs の pc_name（省略時は --pc-id オプションまたは環境変数 pc_id を使用）"
-    )
+    parser_pc_usage.add_argument("user_id", help="ユーザID (UUID)")
+    parser_pc_usage.add_argument("pc_identifier", help="PC ID (UUID) もしくは user_pcs の pc_name")
     parser_pc_usage.add_argument("--output", "-o", help="結果出力先ファイル (省略時は標準出力)")
     
     parser_allowed_time = subparsers.add_parser(
@@ -694,15 +696,8 @@ def main():
         output_result(result, args.output)
     
     elif args.command == "get-pc-usage":
-        user_id = args.user_id or default_user_id
-        pc_identifier = args.pc_identifier or args.pc_id or default_pc_id
-        if not user_id:
-            print("エラー: user_idが指定されていません。コマンドライン引数、--user-id オプション、または環境変数 user_id を設定してください。")
-            sys.exit(1)
-        if not pc_identifier:
-            print("エラー: PC IDが指定されていません。コマンドライン引数、--pc-id オプション、または環境変数 pc_id を設定してください。")
-            sys.exit(1)
-        result = get_pc_usage(user_id, pc_identifier, return_result=True)
+        # user_idとpc_identifierは必須位置引数として受け取る
+        result = get_pc_usage(args.user_id, args.pc_identifier, return_result=True)
         output_result(result, args.output)
     
     elif args.command == "get-allowed-time":

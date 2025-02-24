@@ -1,7 +1,7 @@
 (function() {
   // 元のデザインに基づいたHTMLを埋め込む
   const headerHTML = `
-  <header style="background:#2563eb; padding:10px; color:white; display:flex; align-items:center; justify-content:space-between;">
+  <header style="background:#2563eb; padding:10px; color:white; display:flex; align-items:center; justify-content:space-between; max-width:1480px; margin:0 auto;">
     <div style="display:flex; align-items:center;">
       <h1 style="margin:0;">アクティビティ</h1>
       <!-- ログインユーザ名を表示するエリア -->

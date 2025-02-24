@@ -241,6 +241,61 @@
     .dark-mode .total-extension-label {
       color: #aaa;
     }
+
+    /* スマートフォン向けのレスポンシブ対応 */
+    @media screen and (max-width: 768px) {
+      .sets-container {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .day-set {
+        width: 100%;
+        min-width: auto;
+      }
+
+      /* 選択日以外を非表示 */
+      .day-set:not(:last-child) {
+        display: none;
+      }
+
+      .date-controls {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .date-picker {
+        width: 100%;
+      }
+
+      .graphs-container {
+        overflow-x: auto;
+        padding-bottom: 10px;
+      }
+
+      .timeline-wrapper {
+        min-width: 90px;
+      }
+
+      .pc-title {
+        font-size: 0.8em;
+      }
+
+      .time-marker {
+        font-size: 0.8em;
+      }
+    }
+
+    /* タブレット向けの中間サイズ対応 */
+    @media screen and (min-width: 769px) and (max-width: 1024px) {
+      .day-set {
+        min-width: 250px;
+      }
+
+      .timeline-wrapper {
+        min-width: 80px;
+      }
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>

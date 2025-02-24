@@ -235,3 +235,104 @@ body.dark-mode #timeFormatInfo span.highlight {
   border-color: #3d6b4f;
   color: #98fb98;
 }
+
+/* レスポンシブデザイン対応 */
+@media screen and (max-width: 768px) {
+  body {
+    margin: 10px;
+  }
+
+  .card {
+    padding: 15px;
+  }
+
+  /* ヘッダーのレスポンシブ対応 */
+  header {
+    flex-direction: column;
+    padding: 10px 5px;
+  }
+
+  header nav {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  header nav a {
+    display: block;
+    text-align: center;
+    padding: 8px;
+    margin: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  /* ドロップダウンメニューのモバイル対応 */
+  .dropdown {
+    position: static;
+  }
+
+  .dropdown-content {
+    position: static;
+    width: 100%;
+    box-shadow: none;
+    margin-top: 0;
+    background: transparent;
+  }
+
+  .dropdown-content a {
+    padding: 8px;
+    text-align: center;
+  }
+
+  /* ログアウトボタンのモバイル対応 */
+  #logout-btn {
+    width: 100%;
+    text-align: center;
+    padding: 8px;
+    margin: 10px 0 0 0;
+  }
+
+  /* ユーザー名表示のモバイル対応 */
+  #user-display-name {
+    display: block;
+    text-align: center;
+    margin: 10px 0;
+  }
+
+  /* 入力フォームのモバイル対応 */
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  button {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  /* メッセージ表示のモバイル対応 */
+  .success,
+  .error {
+    margin: 10px 0;
+    padding: 12px;
+  }
+}
+
+/* タブレット向けの中間サイズ対応 */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+  .card {
+    margin: 15px;
+    max-width: 90%;
+  }
+
+  header nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  header nav a {
+    margin-right: 10px;
+  }
+}

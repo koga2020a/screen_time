@@ -350,6 +350,12 @@ def check_usage(user_id, message_mode="normal", return_result=False):
         # 利用済み分数の取得
         total_usage = get_total_usage_minutes(user_id, start, end)
 
+        # 超過分数の計算
+        if total_usage > allowed_time:
+            excess_minutes = total_usage - allowed_time
+            # 超過分を減算
+            insert_watch_log(user_id, -excess_minutes, return_result=False)
+
         difference = allowed_time - total_usage  # 正の値: 残り分数, 負の値: 超過分数
 
         if total_usage <= allowed_time:

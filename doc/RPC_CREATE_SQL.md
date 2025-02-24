@@ -8,6 +8,7 @@ watch_time_log
 
 -- pc_activity_2 テーブルのRLS設定
 ALTER TABLE public.pc_activity_2 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pc_activity_2 ADD COLUMN id SERIAL PRIMARY KEY;
 
 CREATE POLICY "ユーザーは自分のレコードのみアクセス可能" ON public.pc_activity_2
     FOR ALL

@@ -462,98 +462,110 @@
         modal.style.left = "0";
         modal.style.width = "100%";
         modal.style.height = "100%";
-        modal.style.backgroundColor = "rgba(0,0,0,0.5)";
+        modal.style.backgroundColor = "rgba(0,0,0,0.7)"; // 背景を少し暗く
         modal.style.display = "flex";
         modal.style.alignItems = "center";
         modal.style.justifyContent = "center";
         modal.style.zIndex = "1000";
 
-        // モーダル外クリックのイベントリスナー追加
-        modal.addEventListener("click", (e) => {
-          if (e.target === modal) {
-            document.body.removeChild(modal);
-            resolve(null);
-          }
-        });
-        
         const modalContent = document.createElement("div");
         modalContent.className = "modal-content";
         modalContent.style.padding = "20px";
         modalContent.style.borderRadius = "8px";
         modalContent.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+        modalContent.style.width = "400px";
         modalContent.style.transition = "background-color 0.3s, color 0.3s";
-        modalContent.style.width = "400px"; // モーダルウィンドウの横幅を400pxに設定
 
         // ダークモード対応
         if (document.body.classList.contains('dark-mode')) {
-          modalContent.style.backgroundColor = "#2d2d2d";
+          modalContent.style.backgroundColor = "#1a1a1a";
           modalContent.style.color = "#e5e5e5";
-          modalContent.style.borderColor = "#444";
+          modalContent.style.border = "1px solid #404040";
         } else {
           modalContent.style.backgroundColor = "#fff";
           modalContent.style.color = "#000";
-          modalContent.style.borderColor = "#ddd";
+          modalContent.style.border = "1px solid #ddd";
         }
 
         modalContent.innerHTML = `<p>超過分を加算して ${totalAddition} 分の追加できます。<br>どちらの追加を適用しますか？</p>`;
         
         const buttonContainer = document.createElement("div");
         buttonContainer.style.display = "flex";
+        buttonContainer.style.flexDirection = "column";
         buttonContainer.style.gap = "10px";
         buttonContainer.style.marginTop = "20px";
-        buttonContainer.style.justifyContent = "center";
 
-        const createButton = (text, type = 'default') => {
+        const createButton = (text, type) => {
           const btn = document.createElement("button");
           btn.textContent = text;
-          btn.className = "btn";
-          btn.style.padding = "8px 16px";
+          btn.style.padding = "10px 20px";
+          btn.style.border = "none";
           btn.style.borderRadius = "4px";
           btn.style.cursor = "pointer";
+          btn.style.width = "100%";
           btn.style.transition = "all 0.3s ease";
-          btn.style.width = "200%";
-          
+          btn.style.fontSize = "14px";
+
           if (document.body.classList.contains('dark-mode')) {
             switch(type) {
-              case 'total':
-                btn.style.backgroundColor = "#3b82f6"; // 水色
-                btn.style.color = "#ffffff";
-                break;
               case 'cancel':
-                btn.style.backgroundColor = "#ef4444"; // 濃い赤色
-                btn.style.color = "#ffffff";
+                btn.style.backgroundColor = "#7f1d1d"; // ダーク赤
                 break;
-              default:
-                btn.style.backgroundColor = "#333";
-                btn.style.color = "#e5e5e5";
-                btn.style.borderColor = "#555";
+              case 'original':
+                btn.style.backgroundColor = "#1f2937"; // ダーク白（グレー）
+                break;
+              case 'total':
+                btn.style.backgroundColor = "#1d4ed8"; // ダーク水色
+                break;
             }
+            btn.style.color = "#ffffff";
+          } else {
+            switch(type) {
+              case 'cancel':
+                btn.style.backgroundColor = "#ef4444";
+                break;
+              case 'original':
+                btn.style.backgroundColor = "#4b5563";
+                break;
+              case 'total':
+                btn.style.backgroundColor = "#3b82f6";
+                break;
+            }
+            btn.style.color = "#ffffff";
           }
+
+          btn.onmouseover = () => {
+            btn.style.opacity = "0.8";
+          };
+          btn.onmouseout = () => {
+            btn.style.opacity = "1";
+          };
+
           return btn;
         };
 
-        const btnTotal = createButton(`${totalAddition}分追加`, 'total');
-        const btnOriginal = createButton(`${originalAddition}分追加`);
         const btnCancel = createButton("キャンセル", 'cancel');
+        const btnOriginal = createButton(`${originalAddition}分追加`, 'original');
+        const btnTotal = createButton(`${totalAddition}分追加`, 'total');
         
-        btnTotal.addEventListener("click", () => {
-            document.body.removeChild(modal);
-            resolve(totalAddition);
+        btnCancel.addEventListener("click", () => {
+          document.body.removeChild(modal);
+          resolve(null);
         });
         
         btnOriginal.addEventListener("click", () => {
-            document.body.removeChild(modal);
-            resolve(originalAddition);
+          document.body.removeChild(modal);
+          resolve(originalAddition);
         });
         
-        btnCancel.addEventListener("click", () => {
-            document.body.removeChild(modal);
-            resolve(null);
+        btnTotal.addEventListener("click", () => {
+          document.body.removeChild(modal);
+          resolve(totalAddition);
         });
         
-        buttonContainer.appendChild(btnTotal);
-        buttonContainer.appendChild(btnOriginal);
         buttonContainer.appendChild(btnCancel);
+        buttonContainer.appendChild(btnOriginal);
+        buttonContainer.appendChild(btnTotal);
         modalContent.appendChild(buttonContainer);
         modal.appendChild(modalContent);
         document.body.appendChild(modal);

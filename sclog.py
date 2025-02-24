@@ -459,16 +459,16 @@ def get_total_added_minutes(user_id, start_time, end_time):
         response = requests.post(url_rpc, headers=HEADERS, json=payload)
         
         if response.status_code == 400 and "Invalid API key" in response.text:
-            print("Error 1")
+            print("Error 1 at get_total_added_minutes")
             return 0
             
         if not response.text.strip():
-            print('Error 2')
+            print('Error 2 at get_total_added_minutes')
             return 0
             
         data = response.json()
         if not data or len(data) == 0:
-            print('Error 3')
+            print('Error 3 at get_total_added_minutes')
             return 0
             
         # get_total_watch_timeの戻り値から total_added_minutes を取得

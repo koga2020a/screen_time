@@ -721,6 +721,10 @@
         document.getElementById('message').innerHTML = `
           <div class="success">時間調整を登録しました</div>
         `;
+        // 5秒後にメッセージを消去
+        setTimeout(() => {
+          document.getElementById('message').innerHTML = '';
+        }, 3000);
         document.getElementById('minutesInput').value = '';
         document.getElementById('memoInput').value = '';
 

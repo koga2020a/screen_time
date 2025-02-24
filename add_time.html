@@ -84,11 +84,40 @@
       margin-top: 20px;
       font-size: 0.9em;
     }
-    .time-log-item {
-      padding: 8px;
-      border-bottom: 1px solid #eee;
+    .time-log-grid {
+      display: grid;
+      grid-template-columns: auto auto 2fr 0.5fr;
+      gap: 10px;
+      border-top: 1px solid #ddd;
+      background-color: #f9fafb;
     }
-
+    .time-log-header,
+    .time-log-cell {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+    }
+    .time-log-header {
+      font-weight: bold;
+      background-color: #e5e7eb;
+    }
+    
+    /* ダークモード対応 */
+    body.dark-mode .time-log-grid {
+      background-color: #1f2937;
+    }
+    body.dark-mode .time-log-header,
+    body.dark-mode .time-log-cell {
+      border-color: #374151;
+    }
+    body.dark-mode .time-log-header {
+      background-color: #374151;
+      color: #f3f4f6;
+    }
+    body.dark-mode .time-log-cell {
+      color: #d1d5db;
+    }
+    
     /* スマートフォン向けのレスポンシブデザイン */
     @media screen and (max-width: 768px) {
       .input-group {
@@ -116,6 +145,34 @@
       .pc-item {
         padding: 12px;
       }
+
+      .time-log-grid {
+        grid-template-columns: 1fr;
+        gap: 5px;
+      }
+      .time-log-header {
+        display: none;
+      }
+      .time-log-cell {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        padding: 8px;
+        background-color: #ffffff;
+      }
+      .time-log-cell::before {
+        content: attr(data-label);
+        font-weight: bold;
+        margin-right: 10px;
+        color: #6b7280;
+      }
+      
+      /* ダークモード対応 */
+      body.dark-mode .time-log-cell {
+        background-color: #1f2937;
+      }
+      body.dark-mode .time-log-cell::before {
+        color: #9ca3af;
+      }
     }
   </style>
 </head>
@@ -134,14 +191,14 @@
       <div class="input-group">
         <input type="number" id="minutesInput" placeholder="分数">
         <input type="text" id="memoInput" placeholder="メモ（任意）" style="flex: 1;">
-        <button id="submitButton">追加/削減</button>
+        <button id="submitButton">追加</button>
       </div>
       <div id="message"></div>
     </div>
 
     <div class="time-log">
       <h3>本日の時間調整ログ</h3>
-      <div id="timeLogList">
+      <div id="timeLogList" class="time-log-grid">
         <!-- 時間調整ログがここに表示されます -->
       </div>
     </div>
@@ -421,13 +478,11 @@
     // 時間調整ログを表示する関数
     async function displayTimeLog() {
       try {
-        // 本日の日付範囲をJSTで取得
         const today = new Date();
         const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         const endOfDay = new Date(startOfDay);
         endOfDay.setDate(endOfDay.getDate() + 1);
 
-        // UTCに変換
         const startTime = startOfDay.toISOString();
         const endTime = endOfDay.toISOString();
 
@@ -448,30 +503,35 @@
         
         const logs = await response.json();
         const logListElement = document.getElementById('timeLogList');
-        logListElement.innerHTML = '';
+        
+        // ヘッダーとログ内容を作成
+        logListElement.innerHTML = `
+          <div class="time-log-header">時刻</div>
+          <div class="time-log-header">入力時間</div>
+          <div class="time-log-header">メモ</div>
+          <div class="time-log-header">追加時間</div>
+        `;
         
         logs.forEach(log => {
-          const logElement = document.createElement('div');
-          logElement.className = 'time-log-item';
           const date = new Date(log.created_at_jst);
           date.setHours(date.getHours() - 9);
           const time = date.toLocaleTimeString('ja-JP', {
             hour: '2-digit',
             minute: '2-digit',
-            second: '2-digit',
             hourCycle: 'h24'
-          }).replace(/(\d+):(\d+):(\d+)/, '$1時$2分 $3秒');
+          }).replace(/(\d+):(\d+)/, '$1 : $2');
           
-          let displayText = `${time}　　${log.added_minutes}分追加`;
-          if (log.input_minutes !== log.added_minutes) {
-            displayText += `（入力: ${log.input_minutes}分）`;
-          }
-          if (log.memo) {
-            displayText += `　（${log.memo}）`;
-          }
+          // 追加時間と入力時間が同じ場合の表示
+          const inputMinutesDisplay = `${log.input_minutes}分`;
+          const addedMinutesDisplay = log.added_minutes === log.input_minutes ? '々' : `${log.added_minutes}分`;
           
-          logElement.textContent = displayText;
-          logListElement.appendChild(logElement);
+          // 各セルを作成
+          logListElement.innerHTML += `
+            <div class="time-log-cell" data-label="時刻">${time}</div>
+            <div class="time-log-cell" data-label="入力時間">${inputMinutesDisplay}</div>
+            <div class="time-log-cell" data-label="メモ">${log.memo || '-'}</div>
+            <div class="time-log-cell" data-label="追加時間">${addedMinutesDisplay}</div>
+          `;
         });
         
       } catch (error) {
@@ -491,7 +551,7 @@
         modal.style.left = "0";
         modal.style.width = "100%";
         modal.style.height = "100%";
-        modal.style.backgroundColor = "rgba(0,0,0,0.7)"; // 背景を少し暗く
+        modal.style.backgroundColor = "rgba(0,0,0,0.7)";
         modal.style.display = "flex";
         modal.style.alignItems = "center";
         modal.style.justifyContent = "center";
@@ -505,7 +565,6 @@
         modalContent.style.width = "400px";
         modalContent.style.transition = "background-color 0.3s, color 0.3s";
 
-        // ダークモード対応
         if (document.body.classList.contains('dark-mode')) {
           modalContent.style.backgroundColor = "#1a1a1a";
           modalContent.style.color = "#e5e5e5";
@@ -538,13 +597,13 @@
           if (document.body.classList.contains('dark-mode')) {
             switch(type) {
               case 'cancel':
-                btn.style.backgroundColor = "#7f1d1d"; // ダーク赤
+                btn.style.backgroundColor = "#7f1d1d";
                 break;
               case 'original':
-                btn.style.backgroundColor = "#1f2937"; // ダーク白（グレー）
+                btn.style.backgroundColor = "#1f2937";
                 break;
               case 'total':
-                btn.style.backgroundColor = "#1d4ed8"; // ダーク水色
+                btn.style.backgroundColor = "#1d4ed8";
                 break;
             }
             btn.style.color = "#ffffff";
@@ -573,13 +632,13 @@
           return btn;
         };
 
-        const btnCancel = createButton("キャンセル", 'cancel');
-        const btnOriginal = createButton(`${originalAddition}分追加`, 'original');
         const btnTotal = createButton(`${totalAddition}分追加`, 'total');
+        const btnOriginal = createButton(`${originalAddition}分追加`, 'original');
+        const btnCancel = createButton("キャンセル", 'cancel');
         
-        btnCancel.addEventListener("click", () => {
+        btnTotal.addEventListener("click", () => {
           document.body.removeChild(modal);
-          resolve(null);
+          resolve(totalAddition);
         });
         
         btnOriginal.addEventListener("click", () => {
@@ -587,14 +646,14 @@
           resolve(originalAddition);
         });
         
-        btnTotal.addEventListener("click", () => {
+        btnCancel.addEventListener("click", () => {
           document.body.removeChild(modal);
-          resolve(totalAddition);
+          resolve(null);
         });
         
-        buttonContainer.appendChild(btnCancel);
-        buttonContainer.appendChild(btnOriginal);
         buttonContainer.appendChild(btnTotal);
+        buttonContainer.appendChild(btnOriginal);
+        buttonContainer.appendChild(btnCancel);
         modalContent.appendChild(buttonContainer);
         modal.appendChild(modalContent);
         document.body.appendChild(modal);

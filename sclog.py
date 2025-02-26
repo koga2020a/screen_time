@@ -9,6 +9,13 @@ from dotenv import load_dotenv
 import os
 import urllib.parse
 
+# ノートPCの蓋の状態を検出するためにWMIを追加
+try:
+    import wmi
+    WMI_AVAILABLE = True
+except ImportError:
+    WMI_AVAILABLE = False
+
 # .envファイルから環境変数をロード
 load_dotenv()
 
@@ -138,6 +145,19 @@ def get_today_range_jst():
     end_jst = start_jst + timedelta(days=1)
     return start_jst.isoformat(), end_jst.isoformat()
 
+def is_lid_closed():
+    """ノートPCの蓋が閉じられているかどうかをチェックします。
+    WMIが利用可能でなければFalseを返します。"""
+    if not WMI_AVAILABLE:
+        return False
+    
+    try:
+        w = wmi.WMI(namespace="root\\WMI")
+        lid_state = w.ExecQuery("SELECT * FROM WmiMonitorBasicDisplayParams")
+        return len(lid_state) == 0  # 画面が検出できない = 蓋が閉じている可能性
+    except Exception:
+        return False
+
 def log_pc_activity(user_id, pc_identifier, return_result=False):
     """
     PCアクティビティ（利用時間）を記録します。
@@ -145,7 +165,23 @@ def log_pc_activity(user_id, pc_identifier, return_result=False):
     新テーブルpc_activity_2にユーザとPCの組み合わせを登録します。
     
     ※新仕様では、minutes_time_jst はテーブル側で自動計算されるため、値の送信は不要です。
+    
+    ノートPCの蓋が閉じられている場合は処理を中断します。
     """
+    # ノートPCの蓋が閉じられているかチェック
+    if is_lid_closed():
+        # lid_status_logs.txtに日時と現象を記録
+        try:
+            now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
+            log_message = f"{now} - 蓋が閉じられています。PCアクティビティのログ記録を中断しました。\n"
+            with open("lid_status_logs.txt", "a", encoding="utf-8") as log_file:
+                log_file.write(log_message)
+        except Exception as e:
+            print(f"ログファイルへの書き込みに失敗しました: {str(e)}")
+            
+        result = "蓋が閉じられているため、PCアクティビティのログ記録を中断します。"
+        return result if return_result else print(result)
+
     if not is_valid_uuid(user_id):
         result = f"エラー: user_id ({user_id}) は正しいUUID形式ではありません"
         return result if return_result else print(result)

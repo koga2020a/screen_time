@@ -903,6 +903,39 @@
     
     // 初期化を実行
     initializeWithSession();
+
+    // 現在日付のデータを更新する関数
+    async function updateTodayData() {
+      const datePicker = document.getElementById('datePicker');
+      const selectedDateStr = datePicker.value;
+      
+      // 今日の日付を取得（JST）
+      const now = new Date();
+      const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+      const todayStr = formatDate(jstDate);
+      
+      // 選択された日付が今日の場合のみ更新
+      if (selectedDateStr === todayStr) {
+        console.log('今日のデータを更新します...');
+        const todaySetId = `day-set-${todayStr.replace(/-/g, '')}`;
+        const todaySet = document.getElementById(todaySetId);
+        
+        if (todaySet) {
+          // 既存の今日のセットを削除
+          todaySet.remove();
+          
+          // 今日のデータを再取得して表示
+          const newTodaySet = await renderDaySet(todayStr);
+          
+          // コンテナに追加
+          const setsContainer = document.getElementById('setsContainer');
+          setsContainer.appendChild(newTodaySet);
+        }
+      }
+    }
+
+    // 1分ごとに今日のデータを更新
+    setInterval(updateTodayData, 60000);
   </script>
 </body>
 </html>

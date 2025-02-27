@@ -23,9 +23,9 @@
     <div class="input-group">
       <label for="pcIdSelect">PC:</label>
       <select id="pcIdSelect">
+        <option value="all" selected>すべて</option>
         <option value="4e27bdfa-83f9-437f-a06b-0fc108c99039">gam</option>
         <option value="9e7ec6df-31af-4e88-ba60-66783d50bc08">H1</option>
-        <option value="other">その他</option>
       </select>
       <input type="text" id="pcIdOther" placeholder="その他のPC ID" style="display:none;">
     </div>
@@ -161,88 +161,69 @@
       }
     }
     
-    // 登録ボタン押下時の処理（Supabase の RPC 関数 append_pc_activity を利用）
+    // 登録ボタン押下時の処理を修正
     async function registerActivity() {
       // PC ID の取得
-      let pcId;
       const pcSelect = document.getElementById('pcIdSelect');
-      if (pcSelect.value === 'other') {
-        pcId = document.getElementById('pcIdOther').value.trim();
-        if (!pcId) {
-          document.getElementById('activityMessage').innerHTML =
-            `<div class="error">PC IDを入力してください</div>`;
-          return;
-        }
+      if (pcSelect.value === 'all') {
+        // ポップアップを作成
+        const popup = document.createElement('div');
+        popup.style.position = 'fixed';
+        popup.style.top = '50%';
+        popup.style.left = '50%';
+        popup.style.transform = 'translate(-50%, -50%)';
+        popup.style.backgroundColor = 'white';
+        popup.style.padding = '20px';
+        popup.style.border = '1px solid #ccc';
+        popup.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
+        popup.style.zIndex = '1000';
+        popup.style.color = 'black';
+        
+        // 案内メッセージとボタンを追加
+        popup.innerHTML = `
+          <p>登録するPCを選択してください</p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button onclick="selectPC('4e27bdfa-83f9-437f-a06b-0fc108c99039')">gam</button>
+            <button onclick="selectPC('9e7ec6df-31af-4e88-ba60-66783d50bc08')">H1</button>
+            <button onclick="closePopup()" style="background-color: #8B0000; color: white;">キャンセル</button>
+          </div>
+        `;
+        
+        // オーバーレイを作成（ポップアップ外をクリックしたときに閉じるため）
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        overlay.style.zIndex = '999';
+        overlay.onclick = closePopup;
+        
+        // ポップアップとオーバーレイをページに追加
+        document.body.appendChild(overlay);
+        document.body.appendChild(popup);
+        
+        // グローバル変数にポップアップとオーバーレイを保存
+        window.currentPopup = popup;
+        window.currentOverlay = overlay;
+        
+        return;
       } else {
-        pcId = pcSelect.value;
-      }
-      
-      // User ID の取得（セッションから取得）
-      if (!USER_ID) {
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="error">ユーザー情報の取得に失敗しました</div>`;
-        return;
-      }
-      
-      const userId = USER_ID;
-      
-      const timeStr = timeInput.value.trim();
-      if (!timeStr) {
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="error">時刻を入力してください</div>`;
-        return;
-      }
-      
-      let parsed;
-      try {
-        parsed = parseTimeInput(timeStr);
-      } catch (error) {
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="error">${error.message}</div>`;
-        return;
-      }
-      
-      try {
-        // RPC 経由で関数を呼び出す（HEADERS を利用）
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/append_pc_activity`, {
-          method: 'POST',
-          headers: HEADERS,
-          body: JSON.stringify({
-            p_pc_id: pcId,
-            p_user_id: userId,
-            p_minutes: parsed.times
-          })
-        });
-        if (!response.ok) throw new Error('登録に失敗しました');
-        const insertedRows = await response.json();
-        const insertedCount = insertedRows.length;
-        const duplicateCount = parsed.times.length - insertedCount;
-        let msg = `${insertedCount}件登録しました`;
-        if (duplicateCount > 0) {
-          msg += `（既に登録済み: ${duplicateCount}件）`;
-        }
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="success">${msg}</div>`;
-      } catch (error) {
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="error">エラー: ${error.message}</div>`;
+        // 「すべて」以外が選択されている場合は、選択されたPC IDで処理
+        processRegistration(pcSelect.value);
       }
     }
 
     // 削除ボタン押下時の処理（Supabase の RPC 関数 delete_pc_activity を利用）
     async function deleteActivity() {
       // PC ID の取得
-      let pcId;
+      let pcIds = [];
       const pcSelect = document.getElementById('pcIdSelect');
-      if (pcSelect.value === 'other') {
-        pcId = document.getElementById('pcIdOther').value.trim();
-        if (!pcId) {
-          document.getElementById('activityMessage').innerHTML =
-            `<div class="error">PC IDを入力してください</div>`;
-          return;
-        }
+      if (pcSelect.value === 'all') {
+        pcIds = ['4e27bdfa-83f9-437f-a06b-0fc108c99039', '9e7ec6df-31af-4e88-ba60-66783d50bc08'];
       } else {
-        pcId = pcSelect.value;
+        pcIds.push(pcSelect.value);
       }
       
       // User ID の取得（セッションから取得）
@@ -277,28 +258,53 @@
       
       try {
         // RPC 経由で削除関数を呼び出す（HEADERS を利用）
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_pc_activity`, {
-          method: 'POST',
-          headers: HEADERS,
-          body: JSON.stringify({
-            p_pc_id: pcId,
-            p_user_id: userId,
-            p_minutes: parsed.times
-          })
-        });
-        if (!response.ok) throw new Error('削除に失敗しました');
-        const deletedRows = await response.json();
-        const deletedCount = deletedRows.length;
-        const notFoundCount = parsed.times.length - deletedCount;
-        let msg = `${deletedCount}件削除しました`;
-        if (notFoundCount > 0) {
-          msg += `（該当するデータがなかった項目: ${notFoundCount}件）`;
+        let resultMessages = [];
+        for (const pcId of pcIds) {
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/delete_pc_activity`, {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_pc_id: pcId,
+              p_user_id: userId,
+              p_minutes: parsed.times
+            })
+          });
+          if (!response.ok) throw new Error('削除に失敗しました');
+          const deletedRows = await response.json();
+          const deletedCount = deletedRows.length;
+          const notFoundCount = parsed.times.length - deletedCount;
+          
+          // PC名を取得
+          let pcName = "不明";
+          if (pcId === '4e27bdfa-83f9-437f-a06b-0fc108c99039') {
+            pcName = "gam";
+          } else if (pcId === '9e7ec6df-31af-4e88-ba60-66783d50bc08') {
+            pcName = "H1";
+          }
+          
+          let msg = `${pcName}: ${deletedCount}件削除しました`;
+          if (notFoundCount > 0) {
+            msg += `（該当するデータがなかった項目: ${notFoundCount}件）`;
+          }
+          resultMessages.push(msg);
         }
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="success">${msg}</div>`;
+        
+        // 結果メッセージを表示
+        const messageElement = document.getElementById('activityMessage');
+        messageElement.innerHTML = `<div class="success">${resultMessages.join('<br>')}</div>`;
+        
+        // 3秒後にメッセージを消す
+        setTimeout(() => {
+          messageElement.innerHTML = '';
+        }, 3000);
       } catch (error) {
-        document.getElementById('activityMessage').innerHTML =
-          `<div class="error">エラー: ${error.message}</div>`;
+        const messageElement = document.getElementById('activityMessage');
+        messageElement.innerHTML = `<div class="error">エラー: ${error.message}</div>`;
+        
+        // エラーメッセージも3秒後に消す
+        setTimeout(() => {
+          messageElement.innerHTML = '';
+        }, 3000);
       }
     }
     
@@ -316,8 +322,8 @@
     
     // 「その他」を選択した場合、PC ID入力欄を表示
     document.getElementById('pcIdSelect').addEventListener('change', function() {
-      if (this.value === 'other') {
-        document.getElementById('pcIdOther').style.display = 'inline-block';
+      if (this.value === 'all') {
+        document.getElementById('pcIdOther').style.display = 'none';
       } else {
         document.getElementById('pcIdOther').style.display = 'none';
       }
@@ -377,6 +383,91 @@
       }
       else {
         throw new Error("入力形式が正しくありません。例: '16:30'、'16:30-16:35'、'16:30 5'、'16:30 -5'");
+      }
+    }
+
+    function selectPC(pcId) {
+      // ポップアップを閉じる
+      closePopup();
+      
+      // プルダウンの値を変更せず、選択したPC IDを直接使用して登録処理を続行
+      processRegistration(pcId);
+    }
+
+    // 登録処理を行う関数（PC IDを直接受け取る）
+    async function processRegistration(pcId) {
+      // User ID の取得（セッションから取得）
+      if (!USER_ID) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">ユーザー情報の取得に失敗しました</div>`;
+        return;
+      }
+      
+      const userId = USER_ID;
+      
+      const timeStr = timeInput.value.trim();
+      if (!timeStr) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">時刻を入力してください</div>`;
+        return;
+      }
+      
+      let parsed;
+      try {
+        parsed = parseTimeInput(timeStr);
+      } catch (error) {
+        document.getElementById('activityMessage').innerHTML =
+          `<div class="error">${error.message}</div>`;
+        return;
+      }
+      
+      try {
+        // RPC 経由で関数を呼び出す（HEADERS を利用）
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/append_pc_activity`, {
+          method: 'POST',
+          headers: HEADERS,
+          body: JSON.stringify({
+            p_pc_id: pcId,
+            p_user_id: userId,
+            p_minutes: parsed.times
+          })
+        });
+        if (!response.ok) throw new Error('登録に失敗しました');
+        const insertedRows = await response.json();
+        const insertedCount = insertedRows.length;
+        const duplicateCount = parsed.times.length - insertedCount;
+        let msg = `${insertedCount}件登録しました`;
+        if (duplicateCount > 0) {
+          msg += `（既に登録済み: ${duplicateCount}件）`;
+        }
+        
+        const messageElement = document.getElementById('activityMessage');
+        messageElement.innerHTML = `<div class="success">${msg}</div>`;
+        
+        // 3秒後にメッセージを消す
+        setTimeout(() => {
+          messageElement.innerHTML = '';
+        }, 3000);
+      } catch (error) {
+        const messageElement = document.getElementById('activityMessage');
+        messageElement.innerHTML = `<div class="error">エラー: ${error.message}</div>`;
+        
+        // エラーメッセージも3秒後に消す
+        setTimeout(() => {
+          messageElement.innerHTML = '';
+        }, 3000);
+      }
+    }
+
+    function closePopup() {
+      // ポップアップとオーバーレイを削除
+      if (window.currentPopup) {
+        document.body.removeChild(window.currentPopup);
+        window.currentPopup = null;
+      }
+      if (window.currentOverlay) {
+        document.body.removeChild(window.currentOverlay);
+        window.currentOverlay = null;
       }
     }
   </script>

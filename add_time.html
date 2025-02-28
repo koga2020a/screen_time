@@ -542,6 +542,19 @@
     // イベントリスナーの設定
     document.getElementById('submitButton').addEventListener('click', submitTimeAdjustment);
 
+    // 分数入力とメモ入力のEnterキーイベントを追加
+    document.getElementById('minutesInput').addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        document.getElementById('submitButton').click();
+      }
+    });
+
+    document.getElementById('memoInput').addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        document.getElementById('submitButton').click();
+      }
+    });
+
     // --- モーダルポップアップを表示する関数を更新 ---
     function showTimeAdjustmentModal(totalAddition, originalAddition) {
       return new Promise((resolve) => {

@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>PC視聴時間管理</title>
+  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="common.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* 共通スタイルはcommon.cssに移動 */
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    #memoInput {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100%;
+    }
+    
+    /* 数字ボタンのスタイル */
+    .number-button-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+    }
+    
+    .minute-value-button {
+      font-size: 24px;
+      font-weight: bold;
+      padding: 15px 20px;
+      border-radius: 50%;
+      border: none;
+      background-color: #3b82f6;
+      color: white;
+      cursor: pointer;
+      transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      min-width: 150px;
+      min-height: 150px;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      transform-origin: center;
+    }
+    
+    .minute-value-button:hover {
+      background-color: #2563eb;
+    }
+    
+    .minute-value-button.medium {
+      min-width: 200px;
+      min-height: 200px;
+      font-size: 32px;
+    }
+    
+    .minute-value-button.large {
+      min-width: 300px;
+      min-height: 300px;
+      font-size: 40px;
+    }
+    
+    .minute-value-button.xlarge {
+      min-width: 500px;
+      min-height: 500px;
+      font-size: 48px;
+    }
+    
+    .button-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      width: 100%;
+      margin-top: 15px;
+    }
+    
+    .increment-button, .decrement-button {
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.3s;
+      width: 80px;
+      height: 80px;
+      font-size: 24px;
+    }
+    
+    .increment-button {
+      background-color: #10b981;
+      color: white;
+    }
+    
+    .increment-button:hover {
+      background-color: #059669;
+    }
+    
+    .decrement-button {
+      background-color: #ef4444;
+      color: white;
+    }
+    
+    .decrement-button:hover {
+      background-color: #dc2626;
+    }
+    
+    /* ボタンアニメーション */
+    @keyframes inflate {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    
+    @keyframes pulpul {
+      0% { transform: scale(1); }
+      20% { transform: scale(1.05); }
+      40% { transform: scale(0.98); }
+      60% { transform: scale(1.03); }
+      80% { transform: scale(0.99); }
+      100% { transform: scale(1); }
+    }
+    
+    @keyframes purun {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.2); }
+      60% { transform: scale(0.9); }
+      80% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+    
+    /* ダークモード対応 */
+    body.dark-mode .minute-value-button {
+      background-color: #4b5563;
+    }
+    
+    body.dark-mode .minute-value-button:hover {
+      background-color: #6b7280;
+    }
+    
+    body.dark-mode .increment-button {
+      background-color: #065f46;
+    }
+    
+    body.dark-mode .increment-button:hover {
+      background-color: #047857;
+    }
+    
+    body.dark-mode .decrement-button {
+      background-color: #991b1b;
+    }
+    
+    body.dark-mode .decrement-button:hover {
+      background-color: #7f1d1d;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .pc-list {
+      margin-bottom: 20px;
+    }
+    .pc-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 10px;
+    }
+    .pc-name {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .time-info {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      font-size: 0.9em;
+    }
+    .time-adjust {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+    }
+    input[type="number"] {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 100px;
+    }
+    button {
+      padding: 8px 16px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    .error {
+      color: #dc2626;
+      margin-top: 10px;
+    }
+    .success {
+      color: #16a34a;
+      margin-top: 10px;
+    }
+    .time-log {
+      margin-top: 20px;
+      font-size: 0.9em;
+    }
+    .time-log-grid {
+      display: grid;
+      grid-template-columns: auto auto 2fr 0.5fr;
+      gap: 10px;
+      border-top: 1px solid #ddd;
+      background-color: #f9fafb;
+    }
+    .time-log-header,
+    .time-log-cell {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+    }
+    .time-log-header {
+      font-weight: bold;
+      background-color: #e5e7eb;
+    }
+    
+    /* ダークモード対応 */
+    body.dark-mode .time-log-grid {
+      background-color: #1f2937;
+    }
+    body.dark-mode .time-log-header,
+    body.dark-mode .time-log-cell {
+      border-color: #374151;
+    }
+    body.dark-mode .time-log-header {
+      background-color: #374151;
+      color: #f3f4f6;
+    }
+    body.dark-mode .time-log-cell {
+      color: #d1d5db;
+    }
+    
+    /* スマートフォン向けのレスポンシブデザイン */
+    @media screen and (max-width: 768px) {
+      .input-group {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      input[type="number"],
+      input[type="text"],
+      button {
+        width: 100%;
+        max-width: none;
+      }
+
+      .time-info {
+        grid-template-columns: 1fr;
+        gap: 5px;
+      }
+
+      .card {
+        margin: 10px;
+        padding: 15px;
+      }
+
+      .pc-item {
+        padding: 12px;
+      }
+
+      .time-log-grid {
+        grid-template-columns: 1fr;
+        gap: 5px;
+      }
+      .time-log-header {
+        display: none;
+      }
+      .time-log-cell {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        padding: 8px;
+        background-color: #ffffff;
+      }
+      .time-log-cell::before {
+        content: attr(data-label);
+        font-weight: bold;
+        margin-right: 10px;
+        color: #6b7280;
+      }
+      
+      /* ダークモード対応 */
+      body.dark-mode .time-log-cell {
+        background-color: #1f2937;
+      }
+      body.dark-mode .time-log-cell::before {
+        color: #9ca3af;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 共通ヘッダーの読み込み（直接fetchせず、common-header.js を利用） -->
+  <div id="commonHeader"></div>
+  <script src="common-header.js"></script>
+
+  <div class="card">
+    <div id="pcList" class="pc-list">
+      <!-- PCごとの情報がここに表示されます -->
+    </div>
+    
+    <div class="time-adjust">
+      <h3>視聴時間の調整</h3>
+      <div class="input-group">
+        <div class="number-button-container">
+          <div class="button-row">
+            <button id="decrementButton" class="decrement-button">－</button>
+            <button id="incrementButton" class="increment-button">＋</button>
+          </div>
+          <button id="minuteValueButton" class="minute-value-button">0分</button>
+        </div>
+      </div>
+      <div class="input-group">
+        <input type="text" id="memoInput" placeholder="メモ（任意）" style="width: 100%;">
+      </div>
+      <div id="message"></div>
+    </div>
+
+    <div class="time-log">
+      <h3>本日の時間調整ログ</h3>
+      <div id="timeLogList" class="time-log-grid">
+        <!-- 時間調整ログがここに表示されます -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // グローバル変数として Supabase の URL は既に定義されている前提です
+    const SUPABASE_PROJECT_ID = 'xalrqqutkxzwzvahqpjg';
+    const SUPABASE_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co`;
+
+    // グローバル変数としてsupabaseClientを1つだけ保持
+    let supabaseClient;
+    let USER_ID = null;
+
+    // APIリクエスト用のヘッダーを定義
+    const HEADERS = {
+      'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA',
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    };
+
+    window.onload = function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const SUPABASE_KEY = urlParams.get('supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhbHJxcXV0a3h6d3p2YWhxcGpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyNDE2MDIsImV4cCI6MjA1NDgxNzYwMn0.OzfyNlLHmZJOiWnCgsUCnvA9npaDXzVeASr-HVOT1MA';
+
+      // supabaseClientが未初期化の場合のみ初期化を行う
+      if (!supabaseClient) {
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true
+          }
+        });
+      }
+
+      // 初期化を実行
+      initializeWithSession();
+    };
+
+    // セッションチェックと初期化
+    async function initializeWithSession() {
+      try {
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        
+        if (sessionError) throw sessionError;
+        if (!session) {
+          window.location.href = 'auth_test_login.html';
+          return;
+        }
+
+        USER_ID = session.user.id;
+        // データ取得を開始
+        await displayPCInfo();
+        await displayTimeLog();
+
+      } catch (error) {
+        console.error('セッション初期化エラー:', error);
+        window.location.href = 'auth_test_login.html';
+      }
+    }
+
+    // 今日の日付を取得（JST）
+    function getTodayJST() {
+      const now = new Date();
+      const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+      return jstDate.toISOString().split('T')[0];
+    }
+
+    // 分を HH:MM 形式に変換
+    function getTimeString(minutes) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+
+    // 指定時刻（時、分）から総分数を取得
+    function getMinutesFromTime(hours, minutes) {
+      return hours * 60 + minutes;
+    }
+
+    // 時刻レンジ文字列（例："16:50-17:30"）をパース
+    function parseTimeRange(rangeStr) {
+      const [startStr, endStr] = rangeStr.split('-');
+      const [startHour, startMin] = startStr.split(':').map(n => parseInt(n, 10));
+      const [endHour, endMin] = endStr.split(':').map(n => parseInt(n, 10));
+      return {
+        start: getMinutesFromTime(startHour, startMin),
+        end: getMinutesFromTime(endHour, endMin)
+      };
+    }
+
+    // 時間帯の配列をマージ（重複・連続する範囲を統合）
+    function mergeTimeRanges(ranges) {
+      // 重複を除去
+      ranges = [...new Set(ranges)];
+      
+      // 文字列を数値に変換してソート
+      const parsed = ranges.map(range => parseTimeRange(range))
+        .sort((a, b) => a.start - b.start);
+      
+      const merged = [];
+      let current = null;
+      
+      for (const range of parsed) {
+        if (!current) {
+          current = { ...range };
+          continue;
+        }
+
+        if (range.start <= current.end) {
+          current.end = Math.max(current.end, range.end);
+        } else {
+          merged.push(`${getTimeString(current.start)}-${getTimeString(current.end)}`);
+          current = { ...range };
+        }
+      }
+      
+      if (current) {
+        merged.push(`${getTimeString(current.start)}-${getTimeString(current.end)}`);
+      }
+      
+      return merged;
+    }
+
+    // PC名を取得する関数
+    async function getPcName(pcId) {
+      const requestBody = { p_pc_id: pcId };
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_pc_name`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+        if (!response.ok) {
+          throw new Error(`PC name fetch error: ${response.status}`);
+        }
+        const pcName = await response.json();
+        return pcName || pcId;
+      } catch (error) {
+        console.error('Error fetching PC name:', error);
+        return pcId;
+      }
+    }
+
+    // 分析サマリー表示用の関数
+    async function displayAnalysisSummary() {
+      try {
+        const today = getTodayJST();
+        const requestBody = {
+          target_user_id: USER_ID,
+          target_date: today
+        };
+
+        // 許可時間情報の取得（RPC: get_total_watch_time）
+        const totalResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_total_watch_time`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+        if (!totalResponse.ok) {
+          throw new Error('合計視聴時間の取得に失敗しました');
+        }
+        const totalDataArray = await totalResponse.json();
+        const totalData = totalDataArray[0] || {};
+
+        // 利用時間差分情報の取得（RPC: analyze_time_difference）
+        const diffResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify(requestBody)
+          }
+        );
+        if (!diffResponse.ok) {
+          throw new Error('利用時間差分の取得に失敗しました');
+        }
+        const diffDataArray = await diffResponse.json();
+        const diffData = diffDataArray[0] || {};
+
+        // 差分の値に応じた注釈を付与（正の場合：超過、負の場合：許容）
+        const timeDifference = diffData.time_difference || 0;
+        let diffAnnotation = "";
+        if (timeDifference > 0) {
+          diffAnnotation = "（超過してる）";
+        } else if (timeDifference < 0) {
+          diffAnnotation = "（許容）";
+        }
+
+        // 分析サマリー表示用の要素を取得または作成
+        let summaryElement = document.getElementById('analysisSummary');
+        if (!summaryElement) {
+          summaryElement = document.createElement('div');
+          summaryElement.id = 'analysisSummary';
+          summaryElement.style.margin = '20px 0';
+          summaryElement.style.fontSize = '1em';
+          summaryElement.style.fontWeight = 'bold';
+          document.querySelector('.card').insertBefore(summaryElement, document.querySelector('.time-adjust'));
+        }
+
+        // 許可時間と利用時間の両方を表示
+        summaryElement.innerHTML = `
+          許可: ${totalData.total_time || 0}分 (追加: ${totalData.total_added_minutes || 0}分, ベース: ${totalData.default_time || 0}分)
+          <br>
+          利用時間: ${diffData.unique_minutes_count || 0}分, 差分: ${timeDifference}分${diffAnnotation}
+        `;
+      } catch (error) {
+        console.error('分析サマリー取得エラー:', error);
+      }
+    }
+
+    // PCごとの情報を表示する関数
+    async function displayPCInfo() {
+      try {
+        const today = getTodayJST();
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_time_ranges_by_user`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              target_user_id: USER_ID,
+              target_date: today
+            })
+          }
+        );
+        if (!response.ok) throw new Error('データの取得に失敗しました');
+        
+        const data = await response.json();
+        const pcListElement = document.getElementById('pcList');
+        pcListElement.innerHTML = '';
+
+        // PCごとの情報を表示
+        for (const row of data) {
+          let timeRanges = row.time_ranges;
+          if (typeof timeRanges === 'string') {
+            timeRanges = JSON.parse(timeRanges);
+          }
+          const mergedRanges = mergeTimeRanges(timeRanges);
+          let usedMinutes = 0;
+          mergedRanges.forEach(rangeStr => {
+            const { start, end } = parseTimeRange(rangeStr);
+            usedMinutes += (end - start);
+          });
+          const pcName = await getPcName(row.pc_id);
+          const pcElement = document.createElement('div');
+          pcElement.className = 'pc-item';
+          pcElement.innerHTML = `
+            <div class="pc-name">${pcName}</div>
+            <div class="time-info">
+              <div>視聴時間: ${usedMinutes}分</div>
+              <div>利用回数: ${row.activity_count}回</div>
+            </div>
+          `;
+          pcListElement.appendChild(pcElement);
+        }
+
+        // 分析サマリーを表示
+        displayAnalysisSummary();
+
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('message').innerHTML = `
+          <div class="error">エラーが発生しました: ${error.message}</div>
+        `;
+      }
+    }
+
+    // 時間調整ログを表示する関数
+    async function displayTimeLog() {
+      try {
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setDate(endOfDay.getDate() + 1);
+
+        const startTime = startOfDay.toISOString();
+        const endTime = endOfDay.toISOString();
+
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID,
+              p_start_time: startTime,
+              p_end_time: endTime
+            })
+          }
+        );
+        
+        if (!response.ok) throw new Error('ログの取得に失敗しました');
+        
+        const logs = await response.json();
+        const logListElement = document.getElementById('timeLogList');
+        
+        // ヘッダーとログ内容を作成
+        logListElement.innerHTML = `
+          <div class="time-log-header">時刻</div>
+          <div class="time-log-header">入力時間</div>
+          <div class="time-log-header">メモ</div>
+          <div class="time-log-header">追加時間</div>
+        `;
+        
+        logs.forEach(log => {
+          const date = new Date(log.created_at_jst);
+          date.setHours(date.getHours() - 9);
+          const time = date.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h24'
+          }).replace(/(\d+):(\d+)/, '$1 : $2');
+          
+          // 追加時間と入力時間が同じ場合の表示
+          const inputMinutesDisplay = `${log.input_minutes}分`;
+          const addedMinutesDisplay = log.added_minutes === log.input_minutes ? '々' : `${log.added_minutes}分`;
+          
+          // 各セルを作成
+          logListElement.innerHTML += `
+            <div class="time-log-cell" data-label="時刻">${time}</div>
+            <div class="time-log-cell" data-label="入力時間">${inputMinutesDisplay}</div>
+            <div class="time-log-cell" data-label="メモ">${log.memo || '-'}</div>
+            <div class="time-log-cell" data-label="追加時間">${addedMinutesDisplay}</div>
+          `;
+        });
+        
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    // イベントリスナーの設定
+    document.getElementById('minuteValueButton').addEventListener('click', submitTimeAdjustment);
+    
+    // 増加ボタンのイベントリスナー（マウスダウン、マウスアップ、マウスアウト）
+    const incrementButton = document.getElementById('incrementButton');
+    let incrementInterval = null;
+    
+    incrementButton.addEventListener('mousedown', function() {
+      incrementMinutes(1); // 初回は即時に1分増加
+      incrementInterval = setInterval(function() {
+        incrementMinutes(1); // その後は定期的に1分ずつ増加
+      }, 150); // 150msごとに増加
+    });
+    
+    incrementButton.addEventListener('mouseup', stopIncrementing);
+    incrementButton.addEventListener('mouseleave', stopIncrementing);
+    
+    // 減少ボタンのイベントリスナー（マウスダウン、マウスアップ、マウスアウト）
+    const decrementButton = document.getElementById('decrementButton');
+    let decrementInterval = null;
+    
+    decrementButton.addEventListener('mousedown', function() {
+      decrementMinutes(1); // 初回は即時に1分減少
+      decrementInterval = setInterval(function() {
+        decrementMinutes(1); // その後は定期的に1分ずつ減少
+      }, 500); // 500msごとに減少（より遅く）
+    });
+    
+    decrementButton.addEventListener('mouseup', stopDecrementing);
+    decrementButton.addEventListener('mouseleave', stopDecrementing);
+    
+    function stopIncrementing() {
+      if (incrementInterval) {
+        clearInterval(incrementInterval);
+        incrementInterval = null;
+      }
+    }
+    
+    function stopDecrementing() {
+      if (decrementInterval) {
+        clearInterval(decrementInterval);
+        decrementInterval = null;
+      }
+    }
+    
+    // 分数を増加させる関数
+    function incrementMinutes(amount) {
+      const minuteButton = document.getElementById('minuteValueButton');
+      let currentValue = parseInt(minuteButton.textContent) || 0;
+      currentValue += amount;
+      
+      // 5の倍数かどうかのチェック
+      const isMultipleOfFive = currentValue % 5 === 0;
+      
+      updateMinuteButtonValue(currentValue, isMultipleOfFive);
+    }
+    
+    // 分数を減少させる関数
+    function decrementMinutes(amount) {
+      const minuteButton = document.getElementById('minuteValueButton');
+      let currentValue = parseInt(minuteButton.textContent) || 0;
+      
+      // 1分ずつ減少させる（5分ごとではなく）
+      currentValue = Math.max(0, currentValue - 1);
+      
+      updateMinuteButtonValue(currentValue, currentValue % 5 === 0);
+    }
+    
+    // 分数を更新してアニメーションを適用する関数
+    function updateMinuteButtonValue(value, isMultipleOfFive = false) {
+      const minuteButton = document.getElementById('minuteValueButton');
+      minuteButton.textContent = `${value}分`;
+      
+      // アニメーションを適用
+      if (isMultipleOfFive) {
+        minuteButton.style.animation = 'purun 0.6s ease-out';
+      } else {
+        minuteButton.style.animation = 'pulpul 0.4s ease-out 2';
+      }
+      
+      setTimeout(() => {
+        minuteButton.style.animation = '';
+      }, isMultipleOfFive ? 600 : 800);
+      
+      // 数字の大きさに応じてボタンのサイズを変更
+      minuteButton.classList.remove('medium', 'large', 'xlarge');
+      if (value >= 50) {
+        minuteButton.classList.add('xlarge');
+      } else if (value >= 20) {
+        minuteButton.classList.add('large');
+      } else if (value >= 10) {
+        minuteButton.classList.add('medium');
+      }
+    }
+    
+    // メモ入力のEnterキーイベントを追加
+    document.getElementById('memoInput').addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        submitTimeAdjustment();
+      }
+    });
+
+    // --- モーダルポップアップを表示する関数を更新 ---
+    function showTimeAdjustmentModal(totalAddition, originalAddition) {
+      return new Promise((resolve) => {
+        const modal = document.createElement("div");
+        modal.style.position = "fixed";
+        modal.style.top = "0";
+        modal.style.left = "0";
+        modal.style.width = "100%";
+        modal.style.height = "100%";
+        modal.style.backgroundColor = "rgba(0,0,0,0.7)";
+        modal.style.display = "flex";
+        modal.style.alignItems = "center";
+        modal.style.justifyContent = "center";
+        modal.style.zIndex = "1000";
+
+        const modalContent = document.createElement("div");
+        modalContent.className = "modal-content";
+        modalContent.style.padding = "20px";
+        modalContent.style.borderRadius = "8px";
+        modalContent.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+        modalContent.style.width = "400px";
+        modalContent.style.transition = "background-color 0.3s, color 0.3s";
+
+        if (document.body.classList.contains('dark-mode')) {
+          modalContent.style.backgroundColor = "#1a1a1a";
+          modalContent.style.color = "#e5e5e5";
+          modalContent.style.border = "1px solid #404040";
+        } else {
+          modalContent.style.backgroundColor = "#fff";
+          modalContent.style.color = "#000";
+          modalContent.style.border = "1px solid #ddd";
+        }
+
+        modalContent.innerHTML = `<p>超過分を加算して ${totalAddition} 分の追加できます。<br>どちらの追加を適用しますか？</p>`;
+        
+        const buttonContainer = document.createElement("div");
+        buttonContainer.style.display = "flex";
+        buttonContainer.style.flexDirection = "column";
+        buttonContainer.style.gap = "10px";
+        buttonContainer.style.marginTop = "20px";
+
+        const createButton = (text, type) => {
+          const btn = document.createElement("button");
+          btn.textContent = text;
+          btn.style.padding = "10px 20px";
+          btn.style.border = "none";
+          btn.style.borderRadius = "4px";
+          btn.style.cursor = "pointer";
+          btn.style.width = "100%";
+          btn.style.transition = "all 0.3s ease";
+          btn.style.fontSize = "14px";
+
+          if (document.body.classList.contains('dark-mode')) {
+            switch(type) {
+              case 'cancel':
+                btn.style.backgroundColor = "#7f1d1d";
+                break;
+              case 'original':
+                btn.style.backgroundColor = "#1f2937";
+                break;
+              case 'total':
+                btn.style.backgroundColor = "#1d4ed8";
+                break;
+            }
+            btn.style.color = "#ffffff";
+          } else {
+            switch(type) {
+              case 'cancel':
+                btn.style.backgroundColor = "#ef4444";
+                break;
+              case 'original':
+                btn.style.backgroundColor = "#4b5563";
+                break;
+              case 'total':
+                btn.style.backgroundColor = "#3b82f6";
+                break;
+            }
+            btn.style.color = "#ffffff";
+          }
+
+          btn.onmouseover = () => {
+            btn.style.opacity = "0.8";
+          };
+          btn.onmouseout = () => {
+            btn.style.opacity = "1";
+          };
+
+          return btn;
+        };
+
+        const btnTotal = createButton(`${totalAddition}分追加`, 'total');
+        const btnOriginal = createButton(`${originalAddition}分追加`, 'original');
+        const btnCancel = createButton("キャンセル", 'cancel');
+        
+        btnTotal.addEventListener("click", () => {
+          document.body.removeChild(modal);
+          resolve(totalAddition);
+        });
+        
+        btnOriginal.addEventListener("click", () => {
+          document.body.removeChild(modal);
+          resolve(originalAddition);
+        });
+        
+        btnCancel.addEventListener("click", () => {
+          document.body.removeChild(modal);
+          resolve(null);
+        });
+        
+        buttonContainer.appendChild(btnTotal);
+        buttonContainer.appendChild(btnOriginal);
+        buttonContainer.appendChild(btnCancel);
+        modalContent.appendChild(buttonContainer);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+      });
+    }
+
+    // --- submitTimeAdjustment 関数の変更版 ---
+    async function submitTimeAdjustment() {
+      const minuteButton = document.getElementById('minuteValueButton');
+      let minutes = parseInt(minuteButton.textContent) || 0;
+      let memo = document.getElementById('memoInput').value.trim();
+      
+      // メモの先頭に [child]_ を追加
+      if (memo) {
+        memo = `[child]_${memo}`;
+      } else {
+        memo = '[child]_';
+      }
+      
+      let inputMinutes = minutes; // 入力された元の値を保持
+      
+      if (minutes <= 0) {
+        document.getElementById('message').innerHTML = `
+          <div class="error">1分以上の値を設定してください</div>
+        `;
+        return;
+      }
+
+      if (minutes > 0) {
+        const today = getTodayJST();
+        const diffResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              target_user_id: USER_ID,
+              target_date: today
+            })
+          }
+        );
+        if (diffResponse.ok) {
+          const diffDataArray = await diffResponse.json();
+          const diffData = diffDataArray[0] || {};
+          const timeDiff = diffData.time_difference || 0;
+          if (timeDiff > 0) {
+            const totalAddition = minutes + timeDiff;
+            const chosenMinutes = await showTimeAdjustmentModal(totalAddition, minutes);
+            if (chosenMinutes === null) {
+              return;
+            }
+            minutes = chosenMinutes;
+          }
+        }
+      }
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/insert_watch_time_log`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID,
+              p_added_minutes: minutes,
+              p_input_minutes: inputMinutes,
+              p_memo: memo || null
+            })
+          }
+        );
+
+        if (!response.ok) throw new Error('時間調整の登録に失敗しました');
+
+        document.getElementById('message').innerHTML = `
+          <div class="success">時間調整を登録しました</div>
+        `;
+        // 5秒後にメッセージを消去
+        setTimeout(() => {
+          document.getElementById('message').innerHTML = '';
+        }, 3000);
+        
+        // 送信後に値をリセット
+        updateMinuteButtonValue(0);
+        document.getElementById('memoInput').value = '';
+
+        await displayPCInfo();
+        await displayTimeLog();
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('message').innerHTML = `
+          <div class="error">エラーが発生しました: ${error.message}</div>
+        `;
+      }
+    }
+
+    function updateButtonAppearance(minuteValue) {
+        const button = document.getElementById('minuteValueButton');
+        if (minuteValue === 10) {
+            button.classList.add('enlarge');
+        } else {
+            button.classList.remove('enlarge');
+        }
+    }
+  </script>
+</body>
+</html>

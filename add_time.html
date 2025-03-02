@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PC視聴時間管理</title>
   <link rel="icon" href="data:,">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -172,6 +173,54 @@
       }
       body.dark-mode .time-log-cell::before {
         color: #9ca3af;
+      }
+      
+      /* modalのレスポンシブ対応を強化 */
+      .modal-content {
+        width: 90% !important;
+        max-width: 350px;
+        padding: 15px !important;
+      }
+      
+      /* ボタンをタップしやすくする */
+      .modal-content button {
+        padding: 12px 20px !important;
+        margin-bottom: 10px !important;
+        font-size: 16px !important;
+      }
+      
+      /* テキストサイズを調整 */
+      h3 {
+        font-size: 18px;
+      }
+      
+      /* ボタンのタップ領域を拡大 */
+      button {
+        min-height: 44px;
+      }
+    }
+    
+    /* iOSデバイス向けの追加スタイル */
+    @supports (-webkit-touch-callout: none) {
+      input, button {
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      
+      input[type="number"] {
+        padding: 12px;
+        border-radius: 8px;
+      }
+      
+      #memoInput {
+        padding: 12px;
+        border-radius: 8px;
+      }
+      
+      button {
+        padding: 12px 16px;
+        font-size: 16px;
+        border-radius: 8px;
       }
     }
   </style>
@@ -575,7 +624,8 @@
         modalContent.style.padding = "20px";
         modalContent.style.borderRadius = "8px";
         modalContent.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
-        modalContent.style.width = "400px";
+        modalContent.style.width = "90%";
+        modalContent.style.maxWidth = "400px";
         modalContent.style.transition = "background-color 0.3s, color 0.3s";
 
         if (document.body.classList.contains('dark-mode')) {
@@ -599,13 +649,14 @@
         const createButton = (text, type) => {
           const btn = document.createElement("button");
           btn.textContent = text;
-          btn.style.padding = "10px 20px";
+          btn.style.padding = "12px 20px";
           btn.style.border = "none";
-          btn.style.borderRadius = "4px";
+          btn.style.borderRadius = "8px";
           btn.style.cursor = "pointer";
           btn.style.width = "100%";
           btn.style.transition = "all 0.3s ease";
-          btn.style.fontSize = "14px";
+          btn.style.fontSize = "16px";
+          btn.style.minHeight = "44px";
 
           if (document.body.classList.contains('dark-mode')) {
             switch(type) {

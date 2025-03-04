@@ -20,6 +20,11 @@ global user_id_ApiKey := envVars["user_id_ApiKey"]
 global pc_id := envVars["pc_id"]
 global pc_name := envVars["pc_name"]
 
+; Pythonパスをグローバル変数として設定
+global pythonPath := FileExist(A_ScriptDir "\venv") 
+    ? A_ScriptDir "\venv\Scripts\python.exe" 
+    : "python"
+
 global isAbleWatchFile := A_ScriptDir "\is_able_watch.txt"
 global scResultTimeFile := A_ScriptDir "\sc_result_time.txt"
 global lidStatusLogFile := A_ScriptDir "\lid_status_log.txt"
@@ -35,6 +40,7 @@ FileDelete, %A_ScriptDir%\lid_status.txt
 #NoEnv
 #SingleInstance Force
 SetTimer, MainLoop, 20000  ; 20秒ごとに `MainLoop` を実行
+SetTimer, CheckWatchWindowPosition, 5000  ; 5秒ごとに `CheckWatchWindowPosition` を実行
 
 ; タスクトレイのメニュー設定（Exitメニューを追加）
 Menu, Tray, NoStandard
@@ -62,13 +68,15 @@ MainLoop:
 return
 
 CheckFile:
-    Run, python %A_ScriptDir%\sclog.py log-pc-activity %user_id% %pc_id% --api-key %user_id_ApiKey%, , Hide
-    Run, python %A_ScriptDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile% --api-key %user_id_ApiKey%, , Hide
+    ; PC活動ログの記録
+    Run, %pythonPath% %A_ScriptDir%\sclog.py log-pc-activity %user_id% %pc_id% --api-key %user_id_ApiKey%, , Hide
+    ; 視聴可能状態の確認
+    Run, %pythonPath% %A_ScriptDir%\sclog.py is-able-watch %user_id% -o %isAbleWatchFile% --api-key %user_id_ApiKey%, , Hide
     Sleep, 3000
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
     if (fileContent = "F") {
-        if (A_ComputerName ~= "DESKTOP-UQMUFI6") {
+        if (A_ComputerName ~= "DESKTOP-UQMUFI6" ) {
             ; 画面の幅と高さを取得
             SysGet, MonitorWorkArea, MonitorWorkArea
             ; 画面の右下に表示（右端から20ピクセル、下端から40ピクセル）
@@ -94,7 +102,7 @@ CheckFile:
 return
 
 CheckWatchTime:
-    Run, python %A_ScriptDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis --api-key %user_id_ApiKey%, , Hide
+    Run, %pythonPath% %A_ScriptDir%\sclog.py check-usage %user_id% --message-mode fileout_only_message -o %scResultTimeFile% --encoding sjis --api-key %user_id_ApiKey%, , Hide
     Sleep, 3000
 
     FileRead, watchTimeContent_giant, %scResultTimeFile%_giant
@@ -104,6 +112,21 @@ CheckWatchTime:
     watchTimeContent_hover := Trim(watchTimeContent_hover)
 
     Menu, Tray, Tip, % "PC : " pc_name  " | 視聴時間: " watchTimeContent_hover
+return
+
+CheckWatchWindowPosition:
+    if WinExist("WatchWindow") {
+        WinGetPos, winX, winY, , , WatchWindow
+        if (winX > 400 || winY > 400) {
+            Gui, WatchWindow:Destroy
+            Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
+            Gui, WatchWindow:Color, 0xCCCCCC
+            Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
+            Gui, WatchWindow:Font, s20
+            Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
+            Gui, WatchWindow:Show, , WatchWindow
+        }
+    }
 return
 
 IsLidClosed() {
@@ -120,11 +143,6 @@ IsLidClosed() {
     }
     return False  ; 蓋が開いているとみなす
 
-
-
-
-
-    
     FormatTime, currentTime,, yyyy/MM/dd HH:mm:ss
     
     ; WmiMonitorBasicDisplayParamsで画面の状態を確認
@@ -183,6 +201,7 @@ LogLidStatus(status) {
 
 AttemptExit:
     Gui, Destroy  ; 既存のGUIを破棄
+    Gui, +AlwaysOnTop  ; GUIを最前面に表示
     Gui, Add, Text,, 終了するには入力してください:
     Gui, Add, Edit, vExitInput Password  ; 入力をマスク（パスワード風）
     Gui, Add, Button, Default gCheckExit, 確認

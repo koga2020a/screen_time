@@ -53,6 +53,8 @@ return
 MainLoop:
     test := IsLidClosed()
     if (test) {
+        FormatTime, currentTime,, yyyy/MM/dd HH:mm:ss
+        FileAppend, %currentTime% - close`n, %A_ScriptDir%\lid_status_close_history.txt
         return  ; ŠW‚ª•Â‚¶‚Ä‚¢‚é‚È‚ç‰½‚à‚µ‚È‚¢
     }
     GoSub, CheckFile

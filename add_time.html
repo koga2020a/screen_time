@@ -231,10 +231,6 @@
   <script src="common-header.js"></script>
 
   <div class="card">
-    <div id="pcList" class="pc-list">
-      <!-- PCごとの情報がここに表示されます -->
-    </div>
-    
     <div class="time-adjust">
       <h3>視聴時間の調整</h3>
       <div class="input-group">
@@ -244,7 +240,9 @@
       </div>
       <div id="message"></div>
     </div>
-
+    <div id="pcList" class="pc-list">
+      <!-- PCごとの情報がここに表示されます -->
+    </div>
     <div class="time-log">
       <h3>本日の時間調整ログ</h3>
       <div id="timeLogList" class="time-log-grid">
@@ -453,7 +451,7 @@
           summaryElement.style.margin = '20px 0';
           summaryElement.style.fontSize = '1em';
           summaryElement.style.fontWeight = 'bold';
-          document.querySelector('.card').insertBefore(summaryElement, document.querySelector('.time-adjust'));
+          document.querySelector('.card').appendChild(summaryElement);
         }
 
         // 許可時間と利用時間の両方を表示
@@ -715,6 +713,13 @@
           resolve(null);
         });
         
+        // Enterキー押下時に補正も追加した選択をデフォルトに
+        modal.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter') {
+            btnTotal.click();
+          }
+        });
+
         buttonContainer.appendChild(btnTotal);
         buttonContainer.appendChild(btnOriginal);
         buttonContainer.appendChild(btnCancel);

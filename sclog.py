@@ -9,6 +9,15 @@ from dotenv import load_dotenv
 import os
 import urllib.parse
 
+# jpholidayを導入して祝日判定
+try:
+    import jpholiday
+    JPHOLIDAY_AVAILABLE = True
+except ImportError:
+    JPHOLIDAY_AVAILABLE = False
+    print("Warning: jpholiday is not installed. Holiday detection will be disabled.")
+    print("Please install it using: pip install jpholiday")
+
 # ノートPCの蓋の状態を検出するためにWMIを追加
 try:
     import wmi
@@ -351,137 +360,84 @@ def output_result(result, output_file, output_encoding="utf-8"):
     else:
         print(result)
 
-def check_usage(user_id, message_mode="normal", return_result=False):
+def is_holiday_or_weekend(date=None):
     """
-    全PCの利用済み分数と視聴可能時間を比較し、許容範囲内か超過かを返します。
-
-    パラメータ:
-      user_id (str): ユーザID (UUID)
-      message_mode (str): メッセージ出力形式 ("normal", "hover", "giant", "fileout", "fileout_only_message")
-      return_result (bool): 結果を返す場合は True、標準出力の場合は False
-
-    戻り値:
-      JSON文字列（または print 出力）
-      例:
-        {
-           "success": True,
-           "total_usage_minutes": 300,
-           "allowed_watch_time_minutes": 480,
-           "status": "within allowed",
-           "message_jp": "利用時間は許容範囲内です。あと 180 分の視聴が可能です。"
-        }
-    """
-    try:
-        # default_time の取得
-        default_time = get_default_time(user_id)
-        if default_time is None:
-            result = json.dumps({"error": "User not found"}, ensure_ascii=False)
-            return result if return_result else print(result)
-
-        # 当日のUTC範囲（JSTの日付に対応）を取得
-        start, end = get_today_range_utc()
-        total_added_minutes = get_total_added_minutes(user_id, start, end)
-        allowed_time = default_time + total_added_minutes
-
-        # 利用済み分数の取得
-        total_usage = get_total_usage_minutes(user_id, start, end)
-
-        # 超過分数の計算
-        if total_usage > allowed_time:
-            excess_minutes = total_usage - allowed_time
-            # 超過分を減算
-            insert_watch_log(user_id, -excess_minutes, return_result=False)
-
-        difference = allowed_time - total_usage  # 正の値: 残り分数, 負の値: 超過分数
-
-        if total_usage <= allowed_time:
-            status = "within allowed"
-        else:
-            status = "exceeded allowed"
-
-        # message_mode に応じた日本語メッセージの生成
-        if message_mode == "normal":
-            if total_usage <= allowed_time:
-                message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
-            else:
-                message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
-        elif message_mode == "hover":
-            if total_usage <= allowed_time:
-                message_jp = f"許容内 ({difference})"
-            else:
-                message_jp = f"超過 ({-difference})"
-        elif message_mode == "giant":
-            if total_usage <= allowed_time:
-                message_jp = f"視聴可能：残り {difference} 分。"
-            else:
-                message_jp = f"警告！利用時間が {-difference} 分超過中です！"
-        elif message_mode in ["fileout", "fileout_only_message"]:
-            if total_usage <= allowed_time:
-                message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
-            else:
-                message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
-        else:
-            if total_usage <= allowed_time:
-                message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
-            else:
-                message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
-
-        res = {
-            "success": True,
-            "total_usage_minutes": total_usage,
-            "allowed_watch_time_minutes": allowed_time,
-            "status": status,
-            "message_jp": message_jp
-        }
-        result = json.dumps(res, ensure_ascii=False)
-    except Exception:
-        result = "E"
-    return result if return_result else print(result)
-
-def is_able_watch(user_id, return_result=False):
-    """
-    全PCの実際利用分数とその日の設定視聴可能総分数（default_time + watch_time_logの合算）との差分を取得し、
-    視聴可能なら 'T'（実利用が設定内）、超過なら 'F'、エラー発生時は 'E' を返します。
+    指定された日付が休日（土日または祝日）かどうかを判定します。
     
-    新仕様:
-      - Supabase の RPC を利用して、ストアドファンクション analyze_time_difference(target_user_id, target_date) を呼び出します。
-      - ターゲットの日付は JST (YYYY-MM-DD形式) を用います。
-      - analyze_time_difference の戻り値の time_difference が 0 以下なら視聴可能、0 より大きければ超過と判断します。
-      - API keyが無効な場合はエラー('E')を返します。
+    Args:
+        date: 日付オブジェクト。Noneの場合は現在日時を使用。
+    
+    Returns:
+        bool: 休日の場合はTrue、平日の場合はFalse
     """
+    if date is None:
+        date = datetime.now(JST).date()
+    elif isinstance(date, datetime):
+        date = date.date()
+    
+    # 土曜日(5)または日曜日(6)
+    if date.weekday() >= 5:
+        return True
+    
+    # 祝日判定（jpholidayがインストールされている場合のみ）
+    if JPHOLIDAY_AVAILABLE:
+        return jpholiday.is_holiday(date)
+    
+    # jpholidayがない場合は土日のみ休日判定
+    return False
+
+def check_morning_restriction(user_id):
+    """
+    平日（土日祝日以外）の午前の特別な利用制限をチェックします。
+    
+    戻り値:
+        tuple: (制限が有効かどうか, 制限理由)
+        例: (True, "平日の午前7時30分から正午までは利用できません")
+        
+    制限条件:
+    1. 平日の午前7時30分から午前11時59分の間の利用
+    2. 平日の午前1時から午前11時59分の間に21分以上の利用
+    """
+    now_jst = datetime.now(JST)
+    
+    # 休日（土日祝日）の場合は制限なし
+    if is_holiday_or_weekend(now_jst):
+        return False, ""
+    
+    current_hour = now_jst.hour
+    current_minute = now_jst.minute
+    
+    # 午前7時30分から午前11時59分の間なら制限
+    if (7 <= current_hour < 12) and (current_hour > 7 or current_minute >= 30):
+        return True, "平日の午前7時30分から正午までは利用できません"
+    
+    # 午前1時から午前11:59の間の利用が21分以上かをチェック
+    start, end = get_today_range_utc()
+    morning_activity = get_morning_usage(user_id, 1, 12)
+    
+    if morning_activity >= 21:
+        return True, "平日の午前1時から正午までの利用が21分を超えています"
+    
+    # どの条件にも当てはまらない場合は制限なし
+    return False, ""
+
+def get_morning_usage(user_id, start_hour, end_hour):
+    """午前の特定時間帯（start_hour から end_hour まで）の利用時間を分単位で取得します。"""
     try:
-        # JST の当日の日付 (YYYY-MM-DD形式) を取得
-        now_jst = datetime.now(JST)
-        target_date = now_jst.strftime("%Y-%m-%d")
-
-        # Supabase RPC 呼び出し URL (analyze_time_difference を利用)
-        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/analyze_time_difference"
-        payload = {
-            "p_api_key": USER_API_KEY,
-            "target_user_id": user_id,
-            "target_date": target_date
-        }
-        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        start, end = get_today_range_utc()
+        activity_data = get_pc_activity_minutes_by_pc(user_id, None, start, end)
         
-        # エラーレスポンスのチェック
-        if response.status_code == 400 and "Invalid API key" in response.text:
-            result = "E"
-            return result if return_result else print(result)
-            
-        data = response.json() if response.text.strip() else None
-
-        if not data or len(data) == 0 or "time_difference" not in data[0]:
-            result = "E"
-            return result if return_result else print(result)
+        # 時間帯でフィルタリング
+        morning_minutes = set()
+        for activity in activity_data:
+            minutes_time = activity.get("minutes_time_jst", 0)
+            hour = (minutes_time // 60) % 24
+            if start_hour <= hour < end_hour:
+                morning_minutes.add(minutes_time)
         
-        row = data[0]
-        time_difference = row["time_difference"]
-        
-        result = "T" if time_difference <= 0 else "F"
-    except Exception as e:
-        print(f"Error: {str(e)}")  # デバッグ用
-        result = "E"
-    return result if return_result else print(result)
+        return len(morning_minutes)
+    except Exception:
+        return 0
 
 def get_total_added_minutes(user_id, start_time, end_time):
     """指定された期間の追加視聴時間の合計を取得します。"""
@@ -540,6 +496,152 @@ def get_default_time(user_id):
         return data[0].get('default_time', None)
     except Exception:
         return None
+
+def check_usage(user_id, message_mode="normal", return_result=False):
+    """
+    全PCの利用済み分数と視聴可能時間を比較し、許容範囲内か超過かを返します。
+
+    パラメータ:
+      user_id (str): ユーザID (UUID)
+      message_mode (str): メッセージ出力形式 ("normal", "hover", "giant", "fileout", "fileout_only_message")
+      return_result (bool): 結果を返す場合は True、標準出力の場合は False
+
+    戻り値:
+      JSON文字列（または print 出力）
+      例:
+        {
+           "success": True,
+           "total_usage_minutes": 300,
+           "allowed_watch_time_minutes": 480,
+           "status": "within allowed",
+           "message_jp": "利用時間は許容範囲内です。あと 180 分の視聴が可能です。"
+        }
+    """
+    try:
+        # default_time の取得
+        default_time = get_default_time(user_id)
+        if default_time is None:
+            result = json.dumps({"error": "User not found"}, ensure_ascii=False)
+            return result if return_result else print(result)
+
+        # 平日の午前の特別な制限をチェック
+        morning_restriction_active, morning_restriction_reason = check_morning_restriction(user_id)
+
+        # 当日のUTC範囲（JSTの日付に対応）を取得
+        start, end = get_today_range_utc()
+        total_added_minutes = get_total_added_minutes(user_id, start, end)
+        allowed_time = default_time + total_added_minutes
+
+        # 利用済み分数の取得
+        total_usage = get_total_usage_minutes(user_id, start, end)
+
+        # 超過分数の計算
+        if total_usage > allowed_time:
+            excess_minutes = total_usage - allowed_time
+            # 超過分を減算
+            insert_watch_log(user_id, -excess_minutes, return_result=False)
+
+        difference = allowed_time - total_usage  # 正の値: 残り分数, 負の値: 超過分数
+
+        # 特別な時間帯制限がある場合は強制的に超過状態にする
+        if morning_restriction_active:
+            status = "exceeded allowed"
+        else:
+            status = "within allowed" if total_usage <= allowed_time else "exceeded allowed"
+
+        # message_mode に応じた日本語メッセージの生成
+        if message_mode == "normal":
+            if morning_restriction_active:
+                message_jp = f"{morning_restriction_reason}"
+            elif total_usage <= allowed_time:
+                message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
+            else:
+                message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
+        elif message_mode == "hover":
+            if morning_restriction_active:
+                message_jp = f"制限中: {morning_restriction_reason}"
+            elif total_usage <= allowed_time:
+                message_jp = f"許容内 ({difference})"
+            else:
+                message_jp = f"超過 ({-difference})"
+        elif message_mode == "giant":
+            if morning_restriction_active:
+                message_jp = f"警告！{morning_restriction_reason}！"
+            elif total_usage <= allowed_time:
+                message_jp = f"視聴可能：残り {difference} 分。"
+            else:
+                message_jp = f"警告！利用時間が {-difference} 分超過中です！"
+        elif message_mode in ["fileout", "fileout_only_message"]:
+            if morning_restriction_active:
+                message_jp = f"{morning_restriction_reason}"
+            elif total_usage <= allowed_time:
+                message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
+            else:
+                message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
+        else:
+            if morning_restriction_active:
+                message_jp = f"{morning_restriction_reason}"
+            elif total_usage <= allowed_time:
+                message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
+            else:
+                message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
+
+        res = {
+            "success": True,
+            "total_usage_minutes": total_usage,
+            "allowed_watch_time_minutes": allowed_time,
+            "status": status,
+            "message_jp": message_jp
+        }
+        result = json.dumps(res, ensure_ascii=False)
+    except Exception:
+        result = "E"
+    return result if return_result else print(result)
+
+def is_able_watch(user_id, return_result=False):
+    """
+    全PCの実際利用分数とその日の設定視聴可能総分数（default_time + watch_time_logの合算）との差分を取得し、
+    視聴可能なら 'T'（実利用が設定内）、超過なら 'F'、エラー発生時は 'E' を返します。
+    """
+    try:
+        # 平日の午前の特別な制限をチェック
+        is_restricted, _ = check_morning_restriction(user_id)
+        if is_restricted:
+            result = "F"
+            return result if return_result else print(result)
+
+        # JST の当日の日付 (YYYY-MM-DD形式) を取得
+        now_jst = datetime.now(JST)
+        target_date = now_jst.strftime("%Y-%m-%d")
+
+        # Supabase RPC 呼び出し URL (analyze_time_difference を利用)
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/analyze_time_difference"
+        payload = {
+            "p_api_key": USER_API_KEY,
+            "target_user_id": user_id,
+            "target_date": target_date
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        
+        # エラーレスポンスのチェック
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            result = "E"
+            return result if return_result else print(result)
+            
+        data = response.json() if response.text.strip() else None
+
+        if not data or len(data) == 0 or "time_difference" not in data[0]:
+            result = "E"
+            return result if return_result else print(result)
+        
+        row = data[0]
+        time_difference = row["time_difference"]
+        
+        result = "T" if time_difference <= 0 else "F"
+    except Exception as e:
+        print(f"Error: {str(e)}")  # デバッグ用
+        result = "E"
+    return result if return_result else print(result)
 
 def main():
     # .envファイルから設定値を読み込む

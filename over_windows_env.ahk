@@ -40,7 +40,7 @@ FileDelete, %A_ScriptDir%\lid_status.txt
 #NoEnv
 #SingleInstance Force
 SetTimer, MainLoop, 20000  ; 20秒ごとに `MainLoop` を実行
-SetTimer, CheckWatchWindowPosition, 5000  ; 5秒ごとに `CheckWatchWindowPosition` を実行
+SetTimer, CheckWatchWindowPosition, 4000  ; 4秒ごとに `CheckWatchWindowPosition` を実行
 
 ; タスクトレイのメニュー設定（Exitメニューを追加）
 Menu, Tray, NoStandard
@@ -116,8 +116,8 @@ return
 
 CheckWatchWindowPosition:
     if WinExist("WatchWindow") {
-        WinGetPos, winX, winY, , , WatchWindow
-        if (winX > 400 || winY > 400) {
+        ;WinGetPos, winX, winY, , , WatchWindow
+        ;if (winX > 400 || winY > 400) {
             Gui, WatchWindow:Destroy
             Gui, WatchWindow:New, +AlwaysOnTop, WatchWindow
             Gui, WatchWindow:Color, 0xCCCCCC
@@ -125,7 +125,7 @@ CheckWatchWindowPosition:
             Gui, WatchWindow:Font, s20
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
             Gui, WatchWindow:Show, , WatchWindow
-        }
+        ;}
     }
 return
 

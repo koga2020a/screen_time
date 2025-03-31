@@ -400,6 +400,7 @@ def check_morning_restriction(user_id):
     """
     now_jst = datetime.now(JST)
     
+    return False, ""    # 暫定処理で、平日もOKにする
     # 休日（土日祝日）の場合は制限なし
     if is_holiday_or_weekend(now_jst):
         return False, ""

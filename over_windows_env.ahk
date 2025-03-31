@@ -30,6 +30,9 @@ global scResultTimeFile := A_ScriptDir "\sc_result_time.txt"
 global lidStatusLogFile := A_ScriptDir "\lid_status_log.txt"
 global previousLidStatus := ""  ; 前回の状態を保存するグローバル変数
 
+; グローバル変数の追加（ファイル上部に追加）
+global lastSleepTime := 0
+
 ; 起動時に中間ファイルを削除する
 FileDelete, %isAbleWatchFile%
 FileDelete, %scResultTimeFile%_giant
@@ -40,7 +43,7 @@ FileDelete, %A_ScriptDir%\lid_status.txt
 #NoEnv
 #SingleInstance Force
 SetTimer, MainLoop, 20000  ; 20秒ごとに `MainLoop` を実行
-SetTimer, CheckWatchWindowPosition, 4000  ; 4秒ごとに `CheckWatchWindowPosition` を実行
+SetTimer, CheckWatchWindowPosition, 5000  ; 5秒ごとに `CheckWatchWindowPosition` を実行
 
 ; タスクトレイのメニュー設定（Exitメニューを追加）
 Menu, Tray, NoStandard
@@ -76,7 +79,7 @@ CheckFile:
     FileRead, fileContent, %isAbleWatchFile%
     fileContent := Trim(fileContent)
     if (fileContent = "F") {
-        if (A_ComputerName ~= "DESKTOP-UQMUFI6" ) {
+        if (A_ComputerName ~= "DESKTOP-UQMUFI6a" ) {
             ; 画面の幅と高さを取得
             SysGet, MonitorWorkArea, MonitorWorkArea
             ; 画面の右下に表示（右端から20ピクセル、下端から40ピクセル）
@@ -91,6 +94,7 @@ CheckFile:
             Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
             Gui, WatchWindow:Font, s20
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
+            Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2分抑止
             Gui, WatchWindow:Show, , WatchWindow
         }
     } else if (fileContent = "T") {
@@ -124,6 +128,7 @@ CheckWatchWindowPosition:
             Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
             Gui, WatchWindow:Font, s20
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
+            Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2分抑止
             Gui, WatchWindow:Show, , WatchWindow
         ;}
     }
@@ -222,3 +227,40 @@ Return
 AutoCloseGui:
     Gui, Destroy  ; 10秒後にウィンドウを閉じる
 Return
+
+; 新しい関数の追加（ファイル末尾に追加）
+SleepButton:
+    currentTime := A_Now
+    if (lastSleepTime = 0) {
+        lastSleepTime := currentTime
+        ; タイマーを一時停止
+        SetTimer, MainLoop, Off
+        SetTimer, CheckWatchWindowPosition, Off
+        Gui, WatchWindow:Destroy
+        Sleep, 120000  ; 2分間スリープ
+        ; タイマーを再開
+        SetTimer, MainLoop, 20000
+        SetTimer, CheckWatchWindowPosition, 5000
+        return
+    }
+
+    timeDiff := currentTime
+    EnvSub, timeDiff, lastSleepTime, Minutes
+    
+    if (timeDiff < 30) {
+        remaining := 30 - timeDiff
+        ; MsgBoxの代わりにGUIを更新
+        GuiControl,, WatchTimeText, 前回の抑止から30分経過していません。`nあと%remaining%分お待ちください。
+        return
+    }
+    
+    lastSleepTime := currentTime
+    ; タイマーを一時停止
+    SetTimer, MainLoop, Off
+    SetTimer, CheckWatchWindowPosition, Off
+    Gui, WatchWindow:Destroy
+    Sleep, 120000  ; 2分間スリープ
+    ; タイマーを再開
+    SetTimer, MainLoop, 20000
+    SetTimer, CheckWatchWindowPosition, 5000
+return

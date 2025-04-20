@@ -89,9 +89,6 @@ CheckFile:
             if WinExist("WatchWindow") {
                 Gui, WatchWindow:Destroy
             }
-            if WinExist("WatchWindow2") {
-                Gui, WatchWindow2:Destroy
-            }
             Gui, WatchWindow:New, +AlwaysOnTop -Caption -SysMenu, WatchWindow
             Gui, WatchWindow:Color, 0xCCCCCC
             Gui, WatchWindow:Show, x100 w2300 h900, WatchWindow
@@ -99,21 +96,10 @@ CheckFile:
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
             Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2分抑止
             Gui, WatchWindow:Show, , WatchWindow
-
-            Gui, WatchWindow2:New, +AlwaysOnTop -Caption -SysMenu, WatchWindow2
-            Gui, WatchWindow2:Color, 0xCCCCCC
-            Gui, WatchWindow2:Show, x0 y1000 w800 h200, WatchWindow2
-            Gui, WatchWindow2:Font, s20
-            Gui, WatchWindow2:Add, Text, Center vWatchTimeText2, %watchTimeContent_giant%
-            Gui, WatchWindow2:Add, Button, x200 y150 w100 h30 gSleepButton, 2分抑止
-            Gui, WatchWindow2:Show, , WatchWindow2
         }
     } else if (fileContent = "T") {
         if WinExist("WatchWindow") {
             Gui, WatchWindow:Destroy
-        }
-        if WinExist("WatchWindow2") {
-            Gui, WatchWindow2:Destroy
         }
         ToolTip  ; ToolTipを消去
     }
@@ -144,19 +130,6 @@ CheckWatchWindowPosition:
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
             Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2分抑止
             Gui, WatchWindow:Show, , WatchWindow
-        }
-    }
-    if WinExist("WatchWindow2") {
-        WinGetPos, winX, winY, , , WatchWindow2
-        if (winX != 0 || winY != 1200) {
-            Gui, WatchWindow2:Destroy
-            Gui, WatchWindow2:New, +AlwaysOnTop -Caption -SysMenu, WatchWindow2
-            Gui, WatchWindow2:Color, 0xCCCCCC
-            Gui, WatchWindow2:Show, x0 y1200 w500 h200, WatchWindow2
-            Gui, WatchWindow2:Font, s20
-            Gui, WatchWindow2:Add, Text, Center vWatchTimeText2, %watchTimeContent_giant%
-            Gui, WatchWindow2:Add, Button, x200 y150 w100 h30 gSleepButton, 2分抑止
-            Gui, WatchWindow2:Show, , WatchWindow2
         }
     }
 return
@@ -264,7 +237,6 @@ SleepButton:
         SetTimer, MainLoop, Off
         SetTimer, CheckWatchWindowPosition, Off
         Gui, WatchWindow:Destroy
-        Gui, WatchWindow2:Destroy
         Sleep, 120000  ; 2分間スリープ
         ; タイマーを再開
         SetTimer, MainLoop, 20000
@@ -288,7 +260,6 @@ SleepButton:
     SetTimer, MainLoop, Off
     SetTimer, CheckWatchWindowPosition, Off
     Gui, WatchWindow:Destroy
-    Gui, WatchWindow2:Destroy
     Sleep, 120000  ; 2分間スリープ
     ; タイマーを再開
     SetTimer, MainLoop, 20000

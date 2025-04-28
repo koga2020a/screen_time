@@ -133,11 +133,12 @@ CheckWatchWindowPosition:
 ;        WinSet, Bottom,, WatchWindow
         WinSet, Top,, WatchWindow
         WinActivate, WatchWindow
-    }
-    CoordMode, Mouse, Screen
-    MouseGetPos, mouseX, mouseY
-    if (mouseX <= 550 && mouseY >= 700) {
-        MouseMove, 600, 600
+
+        CoordMode, Mouse, Screen
+        MouseGetPos, mouseX, mouseY
+        if (mouseX <= 550 && mouseY >= 700) {
+            MouseMove, 600, 600
+        }
     }
 return
 

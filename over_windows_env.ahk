@@ -89,6 +89,15 @@ CheckFile:
             if WinExist("WatchWindow") {
                 Gui, WatchWindow:Destroy
             }
+
+            Send, {Esc}
+            Sleep, 300
+            ; WindowsÉLÅ[ÇëóêM
+            Send, {LWin}
+            Send, {RWin}
+            Sleep, 300
+            Send, {Esc}
+            Sleep, 300
             CoordMode, Mouse, Screen
             MouseGetPos, mouseX, mouseY
             if (mouseX <= 550 && mouseY >= 700) {

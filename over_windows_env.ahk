@@ -86,10 +86,6 @@ CheckFile:
             CoordMode, ToolTip, Screen
             ToolTip, %watchTimeContent_giant%, % MonitorWorkAreaRight - 20, % MonitorWorkAreaBottom - 40
         } else {
-            if WinExist("WatchWindow") {
-                Gui, WatchWindow:Destroy
-            }
-
             Send, {Esc}
             Sleep, 300
             ; Windowsキーを送信
@@ -98,6 +94,9 @@ CheckFile:
             Sleep, 300
             Send, {Esc}
             Sleep, 300
+            if WinExist("WatchWindow") {
+                Gui, WatchWindow:Destroy
+            }
             CoordMode, Mouse, Screen
             MouseGetPos, mouseX, mouseY
             if (mouseX <= 550 && mouseY >= 700) {
@@ -108,7 +107,7 @@ CheckFile:
             Gui, WatchWindow:Show, x0 y120 w1640 h1200, WatchWindow
             Gui, WatchWindow:Font, s20
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
-            Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2分抑止
+            Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 1分抑止
             Gui, WatchWindow:Show, , WatchWindow
 ;            WinSet, ExStyle, +0x00000008, WatchWindow
 ;            WinSet, ExStyle, +0x00000080, WatchWindow
@@ -118,7 +117,7 @@ CheckFile:
         if WinExist("WatchWindow") {
             Gui, WatchWindow:Destroy
         }
-        lastSleepTime := 0
+        ;lastSleepTime := 0
         ToolTip  ; ToolTipを消去
     }
 return
@@ -254,7 +253,7 @@ SleepButton:
         SetTimer, MainLoop, Off
         SetTimer, CheckWatchWindowPosition, Off
         Gui, WatchWindow:Destroy
-        Sleep, 120000  ; 2分間スリープ
+        Sleep, 60000  ; 1分間スリープ
         ; タイマーを再開
         SetTimer, MainLoop, 20000
         SetTimer, CheckWatchWindowPosition, 5000
@@ -277,7 +276,7 @@ SleepButton:
     SetTimer, MainLoop, Off
     SetTimer, CheckWatchWindowPosition, Off
     Gui, WatchWindow:Destroy
-    Sleep, 120000  ; 2分間スリープ
+    Sleep, 60000  ; 1分間スリープ
     ; タイマーを再開
     SetTimer, MainLoop, 20000
     SetTimer, CheckWatchWindowPosition, 5000

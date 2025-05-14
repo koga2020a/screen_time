@@ -434,6 +434,32 @@
         const diffDataArray = await diffResponse.json();
         const diffData = diffDataArray[0] || {};
 
+        // 入力時間の合計を取得
+        // JSTの0:00と23:59を生成
+        const todayStr = getTodayJST();
+        const startOfDay = new Date(`${todayStr}T00:00:00+09:00`);
+        const endOfDay = new Date(`${todayStr}T23:59:59+09:00`);
+
+        const logsResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID,
+              p_start_time: startOfDay.toISOString(),
+              p_end_time: endOfDay.toISOString()
+            })
+          }
+        );
+        
+        if (!logsResponse.ok) {
+          throw new Error('ログの取得に失敗しました');
+        }
+        
+        const logs = await logsResponse.json();
+        const totalInputMinutes = logs.reduce((sum, log) => sum + (log.input_minutes || 0), 0);
+
         // 差分の値に応じた注釈を付与（正の場合：超過、負の場合：許容）
         const timeDifference = diffData.time_difference || 0;
         let diffAnnotation = "";
@@ -459,6 +485,8 @@
           許可: ${totalData.total_time || 0}分 (追加: ${totalData.total_added_minutes || 0}分, ベース: ${totalData.default_time || 0}分)
           <br>
           利用時間: ${diffData.unique_minutes_count || 0}分, 差分: ${timeDifference}分${diffAnnotation}
+          <br>
+          入力時間合計: ${totalInputMinutes}分
         `;
       } catch (error) {
         console.error('分析サマリー取得エラー:', error);

@@ -790,6 +790,35 @@
         // 分析サマリーを表示
         const diffStatus = diffData.time_difference <= 0 ? '(許容)' : '(超過)';
         totalExtensionLabel.textContent = `起動時間: ${diffData.unique_minutes_count}分, 差分: ${diffData.time_difference}分${diffStatus}`;
+
+        // 入力時間合計を取得し、赤色枠で表示
+        const logsResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
+          {
+            method: 'POST',
+            headers: HEADERS,
+            body: JSON.stringify({
+              p_user_id: USER_ID,
+              p_start_time: `${dateStr}T00:00:00+09:00`,
+              p_end_time: `${dateStr}T23:59:59+09:00`
+            })
+          }
+        );
+        if (logsResponse.ok) {
+          const logs = await logsResponse.json();
+          const totalInputMinutes = logs.reduce((sum, log) => sum + (log.input_minutes || 0), 0);
+          // 分を時間＋分に変換
+          const hours = Math.floor(totalInputMinutes / 60);
+          const mins = totalInputMinutes % 60;
+          const hourMinStr = `（${hours}時間${mins}分）`;
+          // 赤色枠スタイル（中央寄せを追加）
+          const inputMinutesStyle = 'display:inline-block;padding:4px 12px;margin-top:4px;border:2px solid #dc2626;color:#dc2626;background:#fff0f0;border-radius:6px;font-weight:bold;font-size:1.1em;text-align:center;';
+          // 既存のtotalExtensionLabelの次に追加
+          const inputMinutesElem = document.createElement('div');
+          inputMinutesElem.style.textAlign = 'center';
+          inputMinutesElem.innerHTML = `<span style="${inputMinutesStyle}">入力時間合計: ${totalInputMinutes}分 ${hourMinStr}</span>`;
+          totalExtensionLabel.parentNode.insertBefore(inputMinutesElem, totalExtensionLabel.nextSibling);
+        }
         
       } catch (error) {
         console.error('Error:', error);

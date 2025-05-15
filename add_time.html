@@ -240,6 +240,7 @@
       </div>
       <div id="message"></div>
       <div id="inputTimeSummary" style="margin-top: 10px; font-size: 0.9em;"></div>
+      <div id="timeDifference" style="margin-top: 10px; font-size: 0.9em;"></div>
     </div>
     <div id="pcList" class="pc-list">
       <!-- PCごとの情報がここに表示されます -->
@@ -491,6 +492,14 @@
         const inputTimeSummaryElement = document.getElementById('inputTimeSummary');
         inputTimeSummaryElement.innerHTML = `
           <span style="${inputMinutesStyle}">入力時間合計: ${totalInputMinutes}分 (${timeDisplay})</span>
+        `;
+
+        // 差分を表示
+        const timeDifferenceElement = document.getElementById('timeDifference');
+        timeDifferenceElement.innerHTML = `
+          <span style="display:inline-block;padding:4px 12px;margin-top:4px;border:2px solid ${timeDifference > 0 ? '#dc2626' : '#16a34a'};color:${timeDifference > 0 ? '#dc2626' : '#16a34a'};background:${timeDifference > 0 ? '#fff0f0' : '#f0fdf4'};border-radius:6px;font-weight:bold;font-size:1.1em;">
+            差分: ${timeDifference}分${diffAnnotation}
+          </span>
         `;
 
         // 許可時間と利用時間の両方を表示

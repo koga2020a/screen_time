@@ -107,7 +107,7 @@ CheckFile:
             Gui, WatchWindow:Show, x0 y120 w1640 h1200, WatchWindow
             Gui, WatchWindow:Font, s20
             Gui, WatchWindow:Add, Text, Center vWatchTimeText, %watchTimeContent_giant%
-            Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2•ª—}Ž~
+;            Gui, WatchWindow:Add, Button, x1000 y800 w200 h40 gSleepButton, 2•ª—}Ž~
             Gui, WatchWindow:Show, , WatchWindow
 ;            WinSet, ExStyle, +0x00000008, WatchWindow
 ;            WinSet, ExStyle, +0x00000080, WatchWindow

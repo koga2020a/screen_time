@@ -459,7 +459,7 @@
         }
         
         const logs = await logsResponse.json();
-        const totalInputMinutes = logs.reduce((sum, log) => sum + (log.input_minutes || 0), 0);
+        const totalInputMinutes = logs.reduce((sum, log) => sum + (log.input_minutes || 0), 0) + 60; // 60分を追加
         const hours = Math.floor(totalInputMinutes / 60);
         const minutes = totalInputMinutes % 60;
         const timeDisplay = `${hours}時間${minutes}分`;

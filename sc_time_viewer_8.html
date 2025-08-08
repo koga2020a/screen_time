@@ -806,7 +806,7 @@
         );
         if (logsResponse.ok) {
           const logs = await logsResponse.json();
-          const totalInputMinutes = logs.reduce((sum, log) => sum + (log.input_minutes || 0), 0) + 60;
+          const totalInputMinutes = logs.reduce((sum, log) => sum + (log.input_minutes || 0), 0);
           // 分を時間＋分に変換
           const hours = Math.floor(totalInputMinutes / 60);
           const mins = totalInputMinutes % 60;

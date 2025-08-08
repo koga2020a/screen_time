@@ -652,7 +652,90 @@
 
     // --- モーダルポップアップを表示する関数を更新 ---
     function showTimeAdjustmentModal(totalAddition, originalAddition) {
-      return new Promise((resolve) => {
+      return new Promise(async (resolve) => {
+        // --- 追加: 本日の視聴時間・差分・履歴を取得 ---
+        let summaryHtml = '';
+        let logsHtml = '';
+        try {
+          // 本日の視聴時間・差分
+          const today = getTodayJST();
+          const requestBody = {
+            target_user_id: USER_ID,
+            target_date: today
+          };
+          // 許可時間情報
+          const totalResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/rpc/get_total_watch_time`,
+            {
+              method: 'POST',
+              headers: HEADERS,
+              body: JSON.stringify(requestBody)
+            }
+          );
+          const totalDataArray = totalResponse.ok ? await totalResponse.json() : [{}];
+          const totalData = totalDataArray[0] || {};
+          // 差分
+          const diffResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/rpc/analyze_time_difference`,
+            {
+              method: 'POST',
+              headers: HEADERS,
+              body: JSON.stringify(requestBody)
+            }
+          );
+          const diffDataArray = diffResponse.ok ? await diffResponse.json() : [{}];
+          const diffData = diffDataArray[0] || {};
+          const timeDifference = diffData.time_difference || 0;
+          let diffAnnotation = '';
+          if (timeDifference > 0) diffAnnotation = '（超過してる）';
+          else if (timeDifference < 0) diffAnnotation = '（許容）';
+          summaryHtml = `
+            <div style="margin-bottom:8px;font-size:0.95em;">
+              <b>本日の視聴時間サマリー</b><br>
+              許可: ${totalData.total_time || 0}分 (追加: ${totalData.total_added_minutes || 0}分, ベース: ${totalData.default_time || 0}分)<br>
+              <b>本日許可した合計時間: ${totalData.total_added_minutes || 0}分</b><br>
+              利用時間: ${diffData.unique_minutes_count || 0}分, 差分: ${timeDifference}分${diffAnnotation}
+            </div>
+          `;
+          // 本日の追加時間履歴（直近5件）
+          const todayStr = getTodayJST();
+          const startOfDay = new Date(`${todayStr}T00:00:00+09:00`);
+          const endOfDay = new Date(`${todayStr}T23:59:59+09:00`);
+          const logsResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs`,
+            {
+              method: 'POST',
+              headers: HEADERS,
+              body: JSON.stringify({
+                p_user_id: USER_ID,
+                p_start_time: startOfDay.toISOString(),
+                p_end_time: endOfDay.toISOString()
+              })
+            }
+          );
+          if (logsResponse.ok) {
+            const logs = await logsResponse.json();
+            const recentLogs = logs.slice(-5).reverse(); // 直近5件
+            logsHtml = `<div style='margin-bottom:8px;font-size:0.95em;'><b>本日の追加時間履歴（直近5件）</b><br>`;
+            logsHtml += `<table style='width:100%;font-size:0.95em;border-collapse:collapse;'>`;
+            logsHtml += `<tr><th style='border-bottom:1px solid #ccc;'>時刻</th><th style='border-bottom:1px solid #ccc;'>入力</th><th style='border-bottom:1px solid #ccc;'>追加</th><th style='border-bottom:1px solid #ccc;'>メモ</th></tr>`;
+            recentLogs.forEach(log => {
+              const date = new Date(log.created_at_jst);
+              date.setHours(date.getHours() - 9);
+              const time = date.toLocaleTimeString('ja-JP', {
+                hour: '2-digit', minute: '2-digit', hourCycle: 'h24'
+              }).replace(/(\d+):(\d+)/, '$1 : $2');
+              const inputMinutesDisplay = `${log.input_minutes}分`;
+              const addedMinutesDisplay = log.added_minutes === log.input_minutes ? '々' : `${log.added_minutes}分`;
+              logsHtml += `<tr><td>${time}</td><td>${inputMinutesDisplay}</td><td>${addedMinutesDisplay}</td><td>${log.memo || '-'}</td></tr>`;
+            });
+            logsHtml += `</table></div>`;
+          }
+        } catch (e) {
+          summaryHtml = '<div style="color:#dc2626;">サマリー取得エラー</div>';
+        }
+        // --- ここまで追加 ---
+
         const modal = document.createElement("div");
         modal.style.position = "fixed";
         modal.style.top = "0";
@@ -684,7 +767,8 @@
           modalContent.style.border = "1px solid #ddd";
         }
 
-        modalContent.innerHTML = `<p>超過分を加算して ${totalAddition} 分の追加できます。<br>どちらの追加を適用しますか？</p>`;
+        // --- ここでサマリーと履歴を上部に追加 ---
+        modalContent.innerHTML = summaryHtml + logsHtml + `<p>超過分を加算して ${totalAddition} 分の追加できます。<br>どちらの追加を適用しますか？</p>`;
         
         const buttonContainer = document.createElement("div");
         buttonContainer.style.display = "flex";

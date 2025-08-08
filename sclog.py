@@ -472,6 +472,28 @@ def get_total_added_minutes(user_id, start_time, end_time):
         print('Error 4')
         return 0
 
+# 追加許可時間ログを取得 (watch_time_log テーブル)
+def get_watch_time_logs(user_id, start_time, end_time):
+    """
+    指定期間の watch_time_log のレコードを取得します。
+    返り値は JSON のリストです。
+    """
+    try:
+        url_rpc = f"{SUPABASE_URL}/rest/v1/rpc/get_watch_time_logs"
+        payload = {
+            "p_user_id": user_id,
+            "p_start_time": start_time,
+            "p_end_time": end_time
+        }
+        response = requests.post(url_rpc, headers=HEADERS, json=payload)
+        if response.status_code == 400 and "Invalid API key" in response.text:
+            return []
+        if not response.text.strip():
+            return []
+        return response.json()
+    except Exception:
+        return []
+
 def get_default_time(user_id):
     """users_watch_time テーブルから指定されたユーザーのdefault_timeを取得します。"""
     try:
@@ -586,6 +608,37 @@ def check_usage(user_id, message_mode="normal", return_result=False):
                 message_jp = f"利用時間は許容範囲内です。あと {difference} 分の視聴が可能です。"
             else:
                 message_jp = f"利用時間が視聴可能時間を {-difference} 分超過しています。"
+
+        # === 追加許可時間情報を付加 ===
+        logs = get_watch_time_logs(user_id, start, end)
+        added_logs = [log for log in logs if log.get("added_minutes", 0) > 0]
+        total_added_detail = sum(log.get("added_minutes", 0) for log in added_logs)
+        if total_added_detail > 0:
+            if message_mode == "hover":
+                # 1行で合計のみ追加
+                message_jp += f" / 追加 {total_added_detail}分"
+            elif message_mode == "giant":
+                # Giant 表示は縦並びレイアウト
+                # 1行目: 超過または残り時間
+                diff_line = (
+                    f"残り {difference} 分" if difference >= 0 else f"超過 {-difference} 分"
+                )
+                lines = [diff_line, "", f"総追加 {total_added_detail} 分", ""]
+                # 各ログを時刻+追加分数で縦並び
+                for log in added_logs:
+                    ts = log.get("created_at_jst") or log.get("created_at") or ""
+                    try:
+                        ts_dt = datetime.fromisoformat(ts)
+                        if ts_dt.tzinfo is None:
+                            ts_dt = ts_dt.replace(tzinfo=JST)
+                        ts_dt = ts_dt.astimezone(JST)
+                        ts_str = ts_dt.strftime("%H:%M")
+                    except Exception:
+                        ts_str = ""
+                    lines.append(f"{ts_str} +{log.get('added_minutes',0)}分")
+                message_jp = "\n".join(lines)
+            elif message_mode in ["fileout", "fileout_only_message"]:
+                message_jp += f" (追加 {total_added_detail}分)"
 
         res = {
             "success": True,
